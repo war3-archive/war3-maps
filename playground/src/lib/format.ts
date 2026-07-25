@@ -22,7 +22,7 @@ export const TILESETS: Record<string, string> = {
 };
 
 export const PLAYER_TYPES: Record<number, string> = {
-  1: "Human",
+  1: "User",
   2: "Computer",
   3: "Neutral",
   4: "Rescuable",
@@ -35,6 +35,72 @@ export const RACES: Record<number, string> = {
   3: "Undead",
   4: "Night Elf",
 };
+
+/** Classic WC3 slot colors (player id 0–23). */
+export const SLOT_COLORS: string[] = [
+  "#ff0303", // 0 red
+  "#0042ff", // 1 blue
+  "#1ce6b9", // 2 teal
+  "#540081", // 3 purple
+  "#fffc00", // 4 yellow
+  "#fe8a0e", // 5 orange
+  "#20c000", // 6 green
+  "#e55bb0", // 7 pink
+  "#959697", // 8 gray
+  "#7ebff1", // 9 light blue
+  "#106246", // 10 dark green
+  "#4e2a04", // 11 brown
+  "#9b0000", // 12
+  "#0000c3", // 13
+  "#00eaff", // 14
+  "#be00fe", // 15
+  "#ebcd87", // 16
+  "#f8a48b", // 17
+  "#bfff80", // 18
+  "#dcb9eb", // 19
+  "#282828", // 20
+  "#ebf0ff", // 21
+  "#00781e", // 22
+  "#a46f33", // 23
+];
+
+export function slotColor(playerId: number): string {
+  return SLOT_COLORS[((playerId % SLOT_COLORS.length) + SLOT_COLORS.length) % SLOT_COLORS.length];
+}
+
+export function raceIcon(race: number): string {
+  switch (race) {
+    case 1:
+      return "🛡"; // Human
+    case 2:
+      return "⚔"; // Orc
+    case 3:
+      return "💀"; // Undead
+    case 4:
+      return "🌙"; // Night Elf
+    default:
+      return "◇";
+  }
+}
+
+export function controllerLabel(playerType: number): string {
+  return PLAYER_TYPES[playerType] ?? `Type ${playerType}`;
+}
+
+/** Players belonging to a force bitmask, sorted by id. */
+export function playersInForce<T extends { id: number }>(
+  mask: number,
+  players: T[],
+): T[] {
+  const m = mask >>> 0;
+  return players
+    .filter((p) => {
+      const id = p.id >>> 0;
+      if (id >= 32) return false;
+      return ((m >>> id) & 1) === 1;
+    })
+    .sort((a, b) => a.id - b.id);
+}
 
 /** Common war3map.w3i map flags (bit → label). Unknown bits still shown as hex. */
 const MAP_FLAGS: Array<[number, string]> = [

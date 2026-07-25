@@ -1,15 +1,17 @@
 import type { MapMetadata } from "../lib/wasm";
 import {
+  controllerLabel,
   decodeFlags,
   extensionOf,
   formatBuild,
   formatBytes,
   gameDataVersionName,
   graphicsModeName,
-  playerTypeName,
-  playersFromMask,
+  playersInForce,
+  raceIcon,
   raceName,
   scriptModeName,
+  slotColor,
   stripColorCodes,
   tilesetName,
 } from "../lib/format";
@@ -33,8 +35,8 @@ export function tabDefs(data: MapMetadata): Array<{ id: TabId; label: string; co
     { id: "overview", label: "Overview" },
     {
       id: "players",
-      label: "Players",
-      count: data.map_info?.players?.length,
+      label: "Teams",
+      count: data.map_info?.forces?.length || data.map_info?.players?.length,
     },
     { id: "images", label: "Images", count: data.images?.length },
     { id: "strings", label: "Strings", count: data.strings?.length },
@@ -232,7 +234,66 @@ function renderPlayers(data: MapMetadata): HTMLElement {
     return wrap;
   }
 
-  const players = info.players ?? [];
+  const players = [...(info.players ?? [])].sort((a, b) => a.id - b.id);
+  const forces = info.forces ?? [];
+  const assigned = new Set<number>();
+
+  const board = el("div", "teams-board");
+
+  const renderTeam = (title: string, members: typeof players, subtle?: boolean) => {
+    const team = el("section", subtle ? "team-block team-block-subtle" : "team-block");
+    const head = el("header", "team-head");
+    head.innerHTML = `<h3>${escapeHtml(title)}</h3><span class="team-count">${members.length}</span>`;
+    team.append(head);
+
+    if (!members.length) {
+      team.append(el("div", "team-empty", "No players in this force"));
+      board.append(team);
+      return;
+    }
+
+    const list = el("div", "team-list");
+    for (const p of members) {
+      assigned.add(p.id);
+      const row = el("div", "team-row");
+      const color = slotColor(p.id);
+      const name = stripColorCodes(p.name) || `Player ${p.id + 1}`;
+      const race = raceName(p.race);
+      const ctrl = controllerLabel(p.player_type);
+      row.innerHTML = `
+        <div class="team-name" style="color:${color}">
+          <span class="slot-dot" style="background:${color}"></span>
+          <span class="team-name-text">${escapeHtml(name)}</span>
+          <span class="slot-id mono">#${p.id}</span>
+        </div>
+        <div class="team-race">
+          <span class="race-badge" title="${escapeHtml(race)}">${raceIcon(p.race)}</span>
+          <span>${escapeHtml(race)}</span>
+        </div>
+        <div class="team-ctrl ${p.player_type === 1 ? "ctrl-user" : "ctrl-other"}">${escapeHtml(ctrl)}</div>
+      `;
+      list.append(row);
+    }
+    team.append(list);
+    board.append(team);
+  };
+
+  if (forces.length) {
+    forces.forEach((f, i) => {
+      const title = stripColorCodes(f.name) || `Force ${i + 1}`;
+      renderTeam(title, playersInForce(f.player_masks >>> 0, players));
+    });
+    const orphans = players.filter((p) => !assigned.has(p.id));
+    if (orphans.length) renderTeam("Unassigned", orphans, true);
+  } else {
+    renderTeam("All players", players);
+  }
+
+  wrap.append(board);
+
+  // Compact technical details (collapsed-looking secondary card)
+  const details = el("details", "team-details card");
+  details.innerHTML = `<summary>Slot details <span class="muted">start locations & flags</span></summary>`;
   const table = el("div", "table-wrap");
   const t = el("table", "data");
   t.innerHTML = `<thead><tr>
@@ -241,36 +302,23 @@ function renderPlayers(data: MapMetadata): HTMLElement {
   const tb = el("tbody");
   for (const p of players) {
     const tr = el("tr");
+    const color = slotColor(p.id);
     tr.innerHTML = `
       <td class="mono">${p.id}</td>
-      <td>${escapeHtml(stripColorCodes(p.name))}</td>
-      <td>${escapeHtml(playerTypeName(p.player_type))}</td>
+      <td style="color:${color}">${escapeHtml(stripColorCodes(p.name))}</td>
+      <td>${escapeHtml(controllerLabel(p.player_type))}</td>
       <td>${escapeHtml(raceName(p.race))}</td>
       <td>${p.is_fixed_start_position ? "yes" : "no"}</td>
-      <td class="mono">${p.start_location?.[0]?.toFixed?.(1) ?? p.start_location?.[0]}, ${
-        p.start_location?.[1]?.toFixed?.(1) ?? p.start_location?.[1]
-      }</td>`;
+      <td class="mono">${Number(p.start_location?.[0] ?? 0).toFixed(1)}, ${Number(
+        p.start_location?.[1] ?? 0,
+      ).toFixed(1)}</td>`;
     tb.append(tr);
   }
   t.append(tb);
   table.append(t);
-  wrap.append(card("Players", table, String(players.length)));
+  details.append(table);
+  wrap.append(details);
 
-  const forces = info.forces ?? [];
-  const forceBox = el("div");
-  for (const f of forces) {
-    const row = el("div", "card");
-    row.style.marginTop = "0.65rem";
-    row.innerHTML = `<strong>${escapeHtml(stripColorCodes(f.name) || "Force")}</strong>
-      <div class="muted" style="margin-top:0.35rem">Players: ${escapeHtml(
-        playersFromMask(f.player_masks >>> 0, players),
-      )}</div>
-      <div class="mono faint" style="margin-top:0.25rem">flags=0x${(
-        f.flags >>> 0
-      ).toString(16)} mask=0x${(f.player_masks >>> 0).toString(16)}</div>`;
-    forceBox.append(row);
-  }
-  wrap.append(card("Forces", forceBox, String(forces.length)));
   return wrap;
 }
 
