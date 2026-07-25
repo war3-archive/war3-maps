@@ -3,11 +3,6 @@ use binary_reader::BinaryReader;
 use crate::parser::binary_reader::{AutoReadable, BinaryReadable};
 use crate::parser::error::ParserError;
 
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Player {

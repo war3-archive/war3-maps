@@ -19,8 +19,9 @@ wasm-opt = false
 
 [dependencies]
 js-sys = "0.3.77"
-# Core already carries the portable MapSnapshot API; only enable TS/WASM derives.
-war3parser = { workspace = true, features = ["typescript"] }
+serde = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+war3parser = { workspace = true, features = ["serde"] }
 wasm-bindgen = { workspace = true }
 
 [dev-dependencies]

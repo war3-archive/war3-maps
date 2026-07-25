@@ -21,13 +21,7 @@ thiserror = { workspace = true }
 base64 = "0.22.1"
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
-tsify-next = { workspace = true, optional = true }
-wasm-bindgen = { workspace = true, optional = true }
 
 [features]
 default = ["serde"]
 serde = ["dep:serde", "dep:serde_json"]
-# Enables Tsify/wasm-bindgen derives on API types. Only the WASM crate should enable this.
-typescript = ["serde", "dep:tsify-next", "dep:wasm-bindgen"]
-# Deprecated alias kept for downstream compatibility.
-wasm = ["typescript"]

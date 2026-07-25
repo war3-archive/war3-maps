@@ -8,11 +8,6 @@ use super::{
 };
 
 /// Import entry
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Import {
@@ -22,11 +17,6 @@ pub struct Import {
 }
 
 /// Import table
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Default, Clone)]
 pub struct War3MapImp {

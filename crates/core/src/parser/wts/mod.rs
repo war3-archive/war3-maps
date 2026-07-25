@@ -3,11 +3,6 @@ use std::collections::HashMap;
 use super::error::ParserError;
 
 /// String table (`war3map.wts`)
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct War3MapWts {

@@ -1,9 +1,10 @@
 //! WASM bindings for war3parser.
 //!
-//! Thin glue over [`war3parser::model::MapSnapshot`]. All shared data structures
-//! live in the core crate — this crate only exposes `wasm_bindgen` entry points.
+//! Thin glue over [`war3parser::model::MapSnapshot`]. Core stays free of
+//! wasm-bindgen; values cross the boundary via `serde-wasm-bindgen`.
 //!
-//! [![NPM Version](https://img.shields.io/npm/v/%40wesleyel%2Fwar3parser)](https://www.npmjs.com/package/@wesleyel/war3parser)
+//! TypeScript definitions are maintained in `war3parser.d.ts` and copied into
+//! the npm package on build (`just build-wasm`).
 //!
 //! ## Example
 //!
@@ -15,26 +16,34 @@
 //! console.log(version(), meta?.map_info?.name);
 //! ```
 
-use war3parser::prelude::{MapSnapshot, War3MapMetadata};
-use wasm_bindgen::prelude::wasm_bindgen;
+use serde::Serialize;
+use war3parser::prelude::War3MapMetadata;
+use wasm_bindgen::prelude::*;
+
+fn to_js<T: Serialize>(value: &T) -> Result<JsValue, String> {
+    // Keep Option::None as `null` (familiar JSON shape for JS consumers).
+    let serializer = serde_wasm_bindgen::Serializer::new().serialize_missing_as_null(true);
+    value.serialize(&serializer).map_err(|err| err.to_string())
+}
 
 /// Parse a full War3 map (`.w3x` / `.w3m`) buffer.
 ///
-/// Returns `None` if the buffer is not a readable MPQ/map.
-///
-/// The returned value is core's [`MapSnapshot`] (images as PNG data URLs,
-/// sorted imports/strings, optional `parse_ms`).
+/// Returns `undefined` if the buffer is not a readable MPQ/map.
+/// On success, returns a plain JS object matching `War3MapMetadata` /
+/// `MapSnapshot` in the package `.d.ts`.
 #[wasm_bindgen]
-pub fn parse_map(buffer: js_sys::Uint8Array) -> Option<MapSnapshot> {
+pub fn parse_map(buffer: js_sys::Uint8Array) -> JsValue {
     let started = js_sys::Date::now();
-    let mut snapshot = War3MapMetadata::parse_snapshot(&buffer.to_vec())?;
+    let Some(mut snapshot) = War3MapMetadata::parse_snapshot(&buffer.to_vec()) else {
+        return JsValue::UNDEFINED;
+    };
     snapshot.parse_ms = Some(js_sys::Date::now() - started);
-    Some(snapshot)
+    to_js(&snapshot).unwrap_or(JsValue::UNDEFINED)
 }
 
 /// Backward-compatible alias of [`parse_map`].
 #[wasm_bindgen]
-pub fn get_map_info(buffer: js_sys::Uint8Array) -> Option<MapSnapshot> {
+pub fn get_map_info(buffer: js_sys::Uint8Array) -> JsValue {
     parse_map(buffer)
 }
 

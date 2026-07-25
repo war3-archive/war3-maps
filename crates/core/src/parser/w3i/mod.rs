@@ -28,11 +28,6 @@ use {
 /// - 28: build version + script language
 /// - 31: Reforged supported modes + game data version; player enemy priorities
 /// - 32/33: camera zoom defaults (WC3 2.0)
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct War3MapW3i {

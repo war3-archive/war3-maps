@@ -19,9 +19,9 @@ crates/
 
 | Crate | Depends on | Notes |
 |-------|------------|-------|
-| `war3parser` (core) | — | `serde` default; optional `typescript` enables Tsify derives |
+| `war3parser` (core) | — | pure Rust + optional `serde` (default); **no** wasm-bindgen/tsify |
 | `war3parser-cli` | core + `serde` | never pulls wasm-bindgen |
-| `war3parser-wasm` | core + `typescript` | only binds `parse_map` / `version`; types live in core |
+| `war3parser-wasm` | core + `serde-wasm-bindgen` | thin `parse_map` / `version`; hand-maintained `war3parser.d.ts` |
 
 Shared API types (`MapSnapshot`, `War3ImageData`, `ImportEntry`, `StringTableEntry`, `War3MapHeader`, …) live in `war3parser::model` so CLI and WASM do not redefine DTOs.
 

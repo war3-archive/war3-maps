@@ -3,9 +3,9 @@
 ## Workspace structure
 - Renamed `crates/lib` → `crates/core` (package name still `war3parser`)
 - Core split: `parser` (format readers) + `model` (shared portable types)
-- Features: `default = ["serde"]`; `typescript` only for wasm; `wasm` deprecated alias
+- Features: `default = ["serde"]` only — **removed tsify / typescript feature from core**
 - CLI depends on core+serde only (no wasm-bindgen)
-- WASM is thin glue over `MapSnapshot`; removed duplicated DTOs
+- WASM uses `serde-wasm-bindgen` → plain JS objects; hand-maintained `crates/wasm/war3parser.d.ts`
 - Shared types: `War3MapHeader`, `War3ImageData`, `ImportEntry`, `StringTableEntry`, `MapSnapshot`
 
 ## Parser

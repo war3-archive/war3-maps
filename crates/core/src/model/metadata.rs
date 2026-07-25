@@ -30,11 +30,6 @@ pub struct War3MapMetadata {
 ///
 /// This is the canonical cross-crate API shape — prefer it over inventing
 /// parallel DTOs in `war3parser-cli` / `war3parser-wasm`.
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct MapSnapshot {

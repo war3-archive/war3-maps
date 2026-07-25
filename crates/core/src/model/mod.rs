@@ -18,7 +18,7 @@ pub use import::ImportEntry;
 pub use metadata::{MapSnapshot, War3MapMetadata};
 pub use string_table::StringTableEntry;
 
-/// Common derives for API-facing types (serde + optional TypeScript/WASM ABI).
+/// Common derives for API-facing serializable types.
 #[macro_export]
 macro_rules! api_type {
     (
@@ -26,11 +26,6 @@ macro_rules! api_type {
         $vis:vis struct $name:ident $($rest:tt)*
     ) => {
         $(#[$meta])*
-        #[cfg_attr(
-            feature = "typescript",
-            derive(tsify_next::Tsify),
-            tsify(into_wasm_abi, from_wasm_abi)
-        )]
         #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         #[derive(Debug, Clone)]
         $vis struct $name $($rest)*

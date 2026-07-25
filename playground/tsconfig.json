@@ -16,7 +16,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "resolveJsonModule": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@wesleyel/war3parser": ["../crates/wasm/war3parser.d.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../crates/wasm/war3parser.d.ts"]
 }

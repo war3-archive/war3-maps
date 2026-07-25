@@ -208,8 +208,12 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build wasm
-        run: cd ${{ env.WASM_PATH }} && wasm-pack build --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
-      - run: sed -i 's/war3parser-wasm/war3parser/g' ./dist/package.json
+        run: |
+          cd ${{ env.WASM_PATH }}
+          wasm-pack build --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
+          cp war3parser.d.ts ../../dist/war3parser.d.ts
+          # package name @wesleyel/war3parser (crate is war3parser-wasm)
+          sed -i 's/"name": "@wesleyel\/war3parser-wasm"/"name": "@wesleyel\/war3parser"/' ../../dist/package.json
       - uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}

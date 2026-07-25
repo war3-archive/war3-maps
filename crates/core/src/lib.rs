@@ -14,9 +14,7 @@
 //!
 //! | Feature | Default | Purpose |
 //! |---------|---------|---------|
-//! | `serde` | yes | JSON serialization for dumps and TRIGSTR resolution |
-//! | `typescript` | no | Tsify / wasm-bindgen ABI derives (used by `war3parser-wasm`) |
-//! | `wasm` | no | Deprecated alias of `typescript` |
+//! | `serde` | yes | JSON serialization for dumps, TRIGSTR resolution, WASM bridge |
 //!
 //! ## Example
 //!

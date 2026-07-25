@@ -29,11 +29,6 @@ impl From<i32> for MinimapIconType {
 }
 
 /// Single minimap icon entry
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct MinimapIcon {
@@ -53,11 +48,6 @@ impl MinimapIcon {
 }
 
 /// Minimap icon table (`war3map.mmp`)
-#[cfg_attr(
-    feature = "typescript",
-    derive(tsify_next::Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct War3MapMmp {
