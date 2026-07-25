@@ -11,7 +11,7 @@ use crate::parser::{
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TechAvailabilityChange {
     pub player_flags: u32,
     pub id: [u8; 4],

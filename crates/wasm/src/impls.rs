@@ -1,27 +1,76 @@
-use war3parser::{parser::War3MapW3i, war3map_metadata::War3MapMetadata as War3MapMetadataOri};
+use war3parser::war3map_metadata::War3MapMetadata as War3MapMetadataOri;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{War3Image, War3MapMetadata};
+use crate::{ImportEntry, StringTableEntry, War3Image, War3MapMetadata};
 
-/// Extracts map information from a War3 map file buffer.
+fn build_metadata(buffer: &[u8]) -> Option<War3MapMetadata> {
+    let started = js_sys::Date::now();
+    let mut metadata = War3MapMetadataOri::from(buffer)?;
+    // Non-fatal if WTS is missing
+    let _ = metadata.update_string_table();
+
+    let map_info = metadata.map_info.take();
+    let images: Vec<War3Image> = metadata
+        .images
+        .iter()
+        .filter_map(|img| War3Image::try_from(img).ok())
+        .collect();
+
+    let imports = metadata.imp.map(|imp| {
+        let mut entries: Vec<ImportEntry> = imp
+            .entries
+            .into_iter()
+            .map(|(path, entry)| ImportEntry {
+                path,
+                is_custom: entry.is_custom,
+            })
+            .collect();
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+        entries
+    });
+
+    let strings = metadata.wts.map(|wts| {
+        let mut entries: Vec<StringTableEntry> = wts
+            .string_map
+            .into_iter()
+            .map(|(id, value)| StringTableEntry { id, value })
+            .collect();
+        entries.sort_by_key(|e| e.id);
+        entries
+    });
+
+    let mut files = metadata.files;
+    if let Some(ref mut list) = files {
+        list.sort();
+    }
+
+    Some(War3MapMetadata {
+        header: metadata.header,
+        map_info,
+        images,
+        imports,
+        strings,
+        files,
+        parse_ms: js_sys::Date::now() - started,
+    })
+}
+
+/// Parse a full War3 map (`.w3x` / `.w3m`) buffer.
 ///
-/// # Arguments
-/// * `buffer` - A JavaScript `Uint8Array` containing the map file data
-///
-/// # Returns
-/// * `Option<War3MapMetadata>` - The parsed map metadata if successful, including:
-///   - Map information (w3i)
-///   - Image resources
+/// Returns `None` if the buffer is not a readable MPQ/map.
+#[wasm_bindgen]
+pub fn parse_map(buffer: js_sys::Uint8Array) -> Option<War3MapMetadata> {
+    build_metadata(&buffer.to_vec())
+}
+
+/// Backward-compatible alias of [`parse_map`].
 #[wasm_bindgen]
 pub fn get_map_info(buffer: js_sys::Uint8Array) -> Option<War3MapMetadata> {
-    let buffer_vec = buffer.to_vec();
-    match War3MapMetadataOri::from(&buffer_vec) {
-        Some(mut metadata) => {
-            metadata.update_string_table().ok();
-            let map_info = metadata.map_info.map(War3MapW3i::from);
-            let images: Vec<War3Image> = metadata.images.iter().map(War3Image::from).collect();
-            Some(War3MapMetadata { map_info, images })
-        }
-        None => None,
-    }
+    parse_map(buffer)
+}
+
+/// Crate version string for UI badges
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }

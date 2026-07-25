@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Parse Warcraft III maps (.w3x / .w3m) entirely in your browser with war3parser WASM."
+    />
+    <title>war3parser playground</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23161b22'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' font-size='34' fill='%23c9a227'%3E⚔%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/styles/theme.css" />
+    <link rel="stylesheet" href="/src/styles/layout.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">⚔</span>
+          <div>
+            <h1>war3parser <span class="muted">playground</span></h1>
+            <p class="tagline">Warcraft III map inspector · fully local WASM</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="pkg-version" class="badge">…</span>
+          <a
+            class="btn ghost"
+            href="https://github.com/wesleyel/war3parser"
+            target="_blank"
+            rel="noreferrer"
+            >GitHub</a
+          >
+        </div>
+      </header>
+
+      <section class="drop-panel" id="dropzone" tabindex="0">
+        <input
+          id="file-input"
+          type="file"
+          accept=".w3x,.w3m,application/octet-stream"
+          hidden
+        />
+        <div class="drop-inner">
+          <div class="drop-icon" aria-hidden="true">🗺</div>
+          <h2>Drop a <code>.w3x</code> / <code>.w3m</code> map here</h2>
+          <p>or click to browse · parsed in-browser · nothing is uploaded</p>
+          <button type="button" class="btn primary" id="browse-btn">Choose file</button>
+        </div>
+      </section>
+
+      <div id="status" class="status" role="status">Loading WASM…</div>
+
+      <main id="workspace" class="workspace hidden">
+        <aside class="tabs" id="tabs" role="tablist" aria-label="Result sections"></aside>
+        <section class="panel" id="panel" role="tabpanel"></section>
+      </main>
+
+      <footer class="footer">
+        <span
+          >Supports ROC → Reforged / WC3 2.0 (w3i v18–33) · HM3W + pure MPQ · WTS / IMP / images</span
+        >
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

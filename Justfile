@@ -19,3 +19,9 @@ lint:
 
 test:
     cd {{justfile_directory()}} && cargo test --all-targets --all-features
+
+serve-playground: build-wasm
+    cd {{justfile_directory()}}/playground && npm install && npm run dev
+
+build-playground: build-wasm
+    cd {{justfile_directory()}}/playground && npm install && npm run build

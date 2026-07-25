@@ -10,8 +10,9 @@
 //! ### Supported parse targets
 //!
 //! - W3X: [`War3MapW3x`]
-//! - W3I: [`War3MapW3i`]
+//! - W3I: [`War3MapW3i`] (ROC v18 → Reforged / WC3 2.0 v31–33)
 //! - WTS: [`War3MapWts`]
+//! - IMP: [`War3MapImp`]
 //! - BLP: [`BlpImage`]
 //! - TGA: [`TgaImage`]
 //!
@@ -41,5 +42,5 @@ pub mod prelude {
         wts::War3MapWts,
     };
     #[doc(inline)]
-    pub use crate::war3map_metadata::War3MapMetadata;
+    pub use crate::war3map_metadata::{War3MapHeader, War3MapMetadata};
 }

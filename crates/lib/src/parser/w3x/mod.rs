@@ -12,16 +12,19 @@ use super::{
     wts::War3MapWts,
 };
 
-/// Warcraft 3 map entry
+/// Warcraft 3 map entry (HM3W header + embedded MPQ)
 pub struct War3MapW3x {
     pub u1: Option<u32>,
     pub name: Option<String>,
     pub flags: Option<u32>,
     pub max_players: Option<u32>,
 
+    /// Whether the file started with an `HM3W` header
+    pub has_hm3w: bool,
+
     /// MPQ archive
     pub archive: Archive,
-    /// List of files in `(listfile)`
+    /// List of files in `(listfile)` when present
     pub files: Option<Vec<String>>,
 }
 
@@ -29,14 +32,15 @@ impl BinaryReadable for War3MapW3x {
     fn load(stream: &mut BinaryReader, _version: u32) -> Result<Self, ParserError> {
         let header: [u8; 4] = AutoReadable::read(stream)?;
 
-        let (u1, name, flags, max_players) = if header != ['H', 'M', '3', 'W'].map(|c| c as u8) {
-            (None, None, None, None)
-        } else {
+        let (has_hm3w, u1, name, flags, max_players) = if header == [b'H', b'M', b'3', b'W'] {
             let u1 = AutoReadable::read(stream)?;
             let name = AutoReadable::read(stream)?;
             let flags = AutoReadable::read(stream)?;
             let max_players = AutoReadable::read(stream)?;
-            (Some(u1), Some(name), Some(flags), Some(max_players))
+            (true, Some(u1), Some(name), Some(flags), Some(max_players))
+        } else {
+            // Pure MPQ / protected maps without HM3W
+            (false, None, None, None, None)
         };
 
         let mut archive = Archive::load(stream.data.clone())?;
@@ -46,6 +50,7 @@ impl BinaryReadable for War3MapW3x {
             name,
             flags,
             max_players,
+            has_hm3w,
             archive,
             files,
         })
@@ -53,13 +58,13 @@ impl BinaryReadable for War3MapW3x {
 }
 
 impl War3MapW3x {
-    /// Load a MPQ file from a path
+    /// Load a map file from a path
     pub fn new(path: PathBuf) -> Result<Self, ParserError> {
         let buffer = std::fs::read(path)?;
         Self::from_buffer(&buffer)
     }
 
-    /// Load a MPQ file from a buffer
+    /// Load a map file from a buffer
     pub fn from_buffer(buffer: &[u8]) -> Result<Self, ParserError> {
         let mut binary_reader = BinaryReader::from_u8(buffer);
         binary_reader.set_endian(Endian::Little);
@@ -70,9 +75,14 @@ impl War3MapW3x {
     pub fn get_file_names(archive: &mut Archive) -> Result<Vec<String>, ParserError> {
         let file = archive.open_file("(listfile)")?;
         let mut data = vec![0; file.size() as usize];
-        file.read(archive, &mut data).unwrap();
-        let listfile = String::from_utf8(data)?;
-        Ok(listfile.split("\r\n").map(|s| s.to_string()).collect())
+        file.read(archive, &mut data)?;
+        let listfile = String::from_utf8_lossy(&data);
+        Ok(listfile
+            .split(['\r', '\n'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect())
     }
 
     /// Get a file from the MPQ archive
@@ -83,6 +93,14 @@ impl War3MapW3x {
     /// Check if a file exists in the MPQ archive
     pub fn has(&mut self, filename: &str) -> bool {
         self.archive.open_file(filename).is_ok()
+    }
+
+    /// Read file bytes by name
+    pub fn read_file(&mut self, filename: &str) -> Result<Vec<u8>, ParserError> {
+        let file = self.get(filename)?;
+        let mut data = vec![0; file.size() as usize];
+        file.read(&mut self.archive, &mut data)?;
+        Ok(data)
     }
 
     /// Get the script file from the MPQ archive
@@ -99,34 +117,24 @@ impl War3MapW3x {
 
     /// Read the `w3i` map info from the MPQ archive
     pub fn read_map_info(&mut self) -> Result<War3MapW3i, ParserError> {
-        let file = self.get("war3map.w3i")?;
-        let mut data = vec![0; file.size() as usize];
-        file.read(&mut self.archive, &mut data)?;
-
+        let data = self.read_file("war3map.w3i")?;
         let mut reader = BinaryReader::from_vec(&data);
         reader.set_endian(Endian::Little);
-
-        let map_info = War3MapW3i::load(&mut reader, 0)?;
-        Ok(map_info)
+        War3MapW3i::load(&mut reader, 0)
     }
 
     /// Read the `imp` map imports from the MPQ archive
     pub fn read_imports(&mut self) -> Result<War3MapImp, ParserError> {
-        let file = self.get("war3map.imp")?;
-        let mut data = vec![0; file.size() as usize];
-        file.read(&mut self.archive, &mut data)?;
+        let data = self.read_file("war3map.imp")?;
         let mut reader = BinaryReader::from_vec(&data);
         reader.set_endian(Endian::Little);
-
         War3MapImp::load(&mut reader, 0)
     }
 
     /// Read the `wts` string table from the MPQ archive
     pub fn read_string_table(&mut self) -> Result<War3MapWts, ParserError> {
-        let file = self.get("war3map.wts")?;
-        let mut data = vec![0; file.size() as usize];
-        file.read(&mut self.archive, &mut data)?;
-        let buffer = String::from_utf8(data)?;
+        let data = self.read_file("war3map.wts")?;
+        let buffer = String::from_utf8_lossy(&data).into_owned();
         War3MapWts::load(&buffer)
     }
 
@@ -139,11 +147,9 @@ impl War3MapW3x {
             "war3mapmap.blp",
         ]
         .iter()
-        .find(|&filename| self.get(filename).is_ok())
+        .find(|&&filename| self.has(filename))
         .ok_or(ParserError::MapFileNotFound("war3mapMap".to_string()))?;
-        let buffer = self.get(filename)?;
-        let mut data = vec![0; buffer.size() as usize];
-        buffer.read(&mut self.archive, &mut data)?;
+        let data = self.read_file(filename)?;
         War3Image::from_buffer(&data, filename)
     }
 
@@ -156,11 +162,9 @@ impl War3MapW3x {
             "war3mappreview.blp",
         ]
         .iter()
-        .find(|&filename| self.get(filename).is_ok())
+        .find(|&&filename| self.has(filename))
         .ok_or(ParserError::MapFileNotFound("war3mapPreview".to_string()))?;
-        let buffer = self.get(filename)?;
-        let mut data = vec![0; buffer.size() as usize];
-        buffer.read(&mut self.archive, &mut data)?;
+        let data = self.read_file(filename)?;
         War3Image::from_buffer(&data, filename)
     }
 }

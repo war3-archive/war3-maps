@@ -9,7 +9,7 @@ use crate::parser::error::ParserError;
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Player {
     pub id: i32,
     pub player_type: i32,
@@ -19,7 +19,10 @@ pub struct Player {
     pub start_location: [f32; 2],
     pub ally_low_priorities: u32,
     pub ally_high_priorities: u32,
-    pub known1: Option<[u8; 8]>,
+    /// Enemy low-priority bitmask (`version > 30`)
+    pub enemy_low_priorities: Option<u32>,
+    /// Enemy high-priority bitmask (`version > 30`)
+    pub enemy_high_priorities: Option<u32>,
 }
 
 impl BinaryReadable for Player {
@@ -33,7 +36,12 @@ impl BinaryReadable for Player {
             start_location: AutoReadable::read(stream)?,
             ally_low_priorities: AutoReadable::read(stream)?,
             ally_high_priorities: AutoReadable::read(stream)?,
-            known1: if version > 30 {
+            enemy_low_priorities: if version > 30 {
+                Some(AutoReadable::read(stream)?)
+            } else {
+                None
+            },
+            enemy_high_priorities: if version > 30 {
                 Some(AutoReadable::read(stream)?)
             } else {
                 None

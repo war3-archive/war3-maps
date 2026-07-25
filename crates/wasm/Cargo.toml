@@ -14,6 +14,9 @@ readme = "../../README.md"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [dependencies]
 js-sys = "0.3.77"
 serde = { workspace = true, features = ["derive"] }

@@ -11,7 +11,7 @@ use crate::parser::{
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RandomItem {
     pub chance: i32,
     pub id: [u8; 4],
@@ -23,7 +23,7 @@ pub struct RandomItem {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RandomItemSet {
     pub items: Vec<RandomItem>,
 }
@@ -34,7 +34,7 @@ pub struct RandomItemSet {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RandomItemTable {
     pub id: i32,
     pub name: String,

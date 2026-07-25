@@ -22,19 +22,26 @@ use {
 
 /// Map info for `war3map.w3i` file
 ///
-/// Special thanks to [mdx-m3-viewer](https://github.com/flowtsohg/mdx-m3-viewer) for the map info format
+/// Special thanks to [mdx-m3-viewer](https://github.com/flowtsohg/mdx-m3-viewer) for the map info format.
+/// Version notes:
+/// - 18: ROC
+/// - 25: TFT (loading models, fog, random item tables)
+/// - 28: build version + script language
+/// - 31: Reforged supported modes + game data version; player enemy priorities
+/// - 32/33: camera zoom defaults (WC3 2.0)
 #[cfg_attr(
     feature = "wasm",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct War3MapW3i {
     pub version: u32,
     pub saves: u32,
     pub editor_version: u32,
-    pub build_version: Option<[u32; 4]>, // version > 27
+    /// Present when `version > 27` (1.31+)
+    pub build_version: Option<[u32; 4]>,
 
     pub name: String,
     pub author: String,
@@ -42,40 +49,54 @@ pub struct War3MapW3i {
     pub recommended_players: String,
 
     pub camera_bounds: [f32; 8],
-    pub camera_bounds_complements: [u32; 4],
-    pub playable_size: [u32; 2],
+    pub camera_bounds_complements: [i32; 4],
+    pub playable_size: [i32; 2],
 
     pub flags: u32,
     pub tileset: u8,
 
-    pub campaign_background: u32,
+    /// Loading screen background index (ROC) / custom loading index
+    pub campaign_background: i32,
 
-    pub loading_screen_model: Option<String>, // version > 24
+    /// Present when `version > 24` (TFT+)
+    pub loading_screen_model: Option<String>,
     pub loading_screen_text: String,
     pub loading_screen_title: String,
     pub loading_screen_subtitle: String,
-    pub loading_screen: u32,
+    /// Game data set on TFT+ (0 default, 1 custom, 2 melee)
+    pub loading_screen: i32,
 
-    pub prologue_screen_model: Option<String>, // version > 24
+    pub prologue_screen_model: Option<String>,
     pub prologue_screen_text: String,
     pub prologue_screen_title: String,
     pub prologue_screen_subtitle: String,
 
-    // version > 24
-    pub use_terrain_fog: Option<u32>,
+    /// Fog style when `version > 24`
+    pub use_terrain_fog: Option<i32>,
     pub fog_height: Option<[f32; 2]>,
-    pub fog_density: Option<u32>,
+    pub fog_density: Option<f32>,
     pub fog_color: Option<[u8; 4]>,
-    pub global_weather: Option<u32>,
+    pub global_weather: Option<i32>,
     pub sound_environment: Option<String>,
     pub light_environment_tileset: Option<u8>,
     pub water_vertex_color: Option<[u8; 4]>,
 
-    pub script_mode: Option<u32>, // version > 27
+    /// 0 = JASS, 1 = Lua (`version > 27`)
+    pub script_mode: Option<u32>,
 
-    // version > 30
+    /// Supported graphics modes (`version > 30`): 1=SD, 2=HD, 3=both
     pub graphics_mode: Option<u32>,
-    pub unknown1: Option<u32>,
+    /// Game data version (`version > 30`): 0=ROC, 1=TFT
+    pub game_data_version: Option<u32>,
+
+    /// WC3 2.0 camera zoom (`version >= 32`)
+    pub default_camera_zoom: Option<u32>,
+    pub max_camera_zoom: Option<u32>,
+    /// `version >= 33`
+    pub min_camera_zoom: Option<u32>,
+
+    /// True when trailing upgrade/tech/random sections were omitted (`0xFF` marker)
+    pub skipped_optional_sections: bool,
 
     pub players: Vec<Player>,
     pub forces: Vec<Force>,
@@ -85,162 +106,201 @@ pub struct War3MapW3i {
     pub random_item_tables: Vec<RandomItemTable>,
 }
 
+fn remaining(stream: &BinaryReader) -> usize {
+    stream.length.saturating_sub(stream.pos)
+}
+
+fn read_count_vec<T: BinaryReadable>(
+    stream: &mut BinaryReader,
+    version: u32,
+) -> Result<Vec<T>, ParserError> {
+    if remaining(stream) < 4 {
+        return Ok(Vec::new());
+    }
+    let count: u32 = AutoReadable::read(stream)?;
+    let mut items = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        items.push(T::load(stream, version)?);
+    }
+    Ok(items)
+}
+
 impl BinaryReadable for War3MapW3i {
     fn load(stream: &mut BinaryReader, _version: u32) -> Result<Self, ParserError> {
         let version: u32 = AutoReadable::read(stream)?;
+        let saves: u32 = AutoReadable::read(stream)?;
+        let editor_version: u32 = AutoReadable::read(stream)?;
+        let build_version = if version > 27 {
+            Some(AutoReadable::read(stream)?)
+        } else {
+            None
+        };
+
+        let name: String = AutoReadable::read(stream)?;
+        let author: String = AutoReadable::read(stream)?;
+        let description: String = AutoReadable::read(stream)?;
+        let recommended_players: String = AutoReadable::read(stream)?;
+        let camera_bounds: [f32; 8] = AutoReadable::read(stream)?;
+        let camera_bounds_complements: [i32; 4] = AutoReadable::read(stream)?;
+        let playable_size: [i32; 2] = AutoReadable::read(stream)?;
+        let flags: u32 = AutoReadable::read(stream)?;
+        let tileset: u8 = AutoReadable::read(stream)?;
+        let campaign_background: i32 = AutoReadable::read(stream)?;
+
+        let loading_screen_model = if version > 24 {
+            Some(AutoReadable::read(stream)?)
+        } else {
+            None
+        };
+        let loading_screen_text: String = AutoReadable::read(stream)?;
+        let loading_screen_title: String = AutoReadable::read(stream)?;
+        let loading_screen_subtitle: String = AutoReadable::read(stream)?;
+        let loading_screen: i32 = AutoReadable::read(stream)?;
+
+        let prologue_screen_model = if version > 24 {
+            Some(AutoReadable::read(stream)?)
+        } else {
+            None
+        };
+        let prologue_screen_text: String = AutoReadable::read(stream)?;
+        let prologue_screen_title: String = AutoReadable::read(stream)?;
+        let prologue_screen_subtitle: String = AutoReadable::read(stream)?;
+
+        let (
+            use_terrain_fog,
+            fog_height,
+            fog_density,
+            fog_color,
+            global_weather,
+            sound_environment,
+            light_environment_tileset,
+            water_vertex_color,
+        ) = if version > 24 {
+            (
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+            )
+        } else {
+            (None, None, None, None, None, None, None, None)
+        };
+
+        let script_mode = if version > 27 {
+            Some(AutoReadable::read(stream)?)
+        } else {
+            None
+        };
+
+        let (graphics_mode, game_data_version) = if version > 30 {
+            (
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+            )
+        } else {
+            (None, None)
+        };
+
+        // WC3 2.0 camera zoom — HiveWE / War3Net layout:
+        // v32+: default + max; v33+: min
+        let (default_camera_zoom, max_camera_zoom, min_camera_zoom) = if version >= 33 {
+            (
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+            )
+        } else if version >= 32 {
+            (
+                Some(AutoReadable::read(stream)?),
+                Some(AutoReadable::read(stream)?),
+                None,
+            )
+        } else {
+            (None, None, None)
+        };
+
+        let players = read_count_vec::<Player>(stream, version)?;
+        let forces = read_count_vec::<Force>(stream, version)?;
+
+        // War3Net: after forces, a single 0xFF byte means upgrade/tech/random data is omitted
+        // (common on older / protected maps such as classic DotA).
+        let mut skipped_optional_sections = false;
+        let mut upgrade_availability_changes = Vec::new();
+        let mut tech_availability_changes = Vec::new();
+        let mut random_unit_tables = Vec::new();
+        let mut random_item_tables = Vec::new();
+
+        if remaining(stream) > 0 && stream.data[stream.pos] == 0xFF {
+            stream.adv(1);
+            skipped_optional_sections = true;
+        } else {
+            upgrade_availability_changes =
+                read_count_vec::<UpgradeAvailabilityChange>(stream, version)?;
+            tech_availability_changes = read_count_vec::<TechAvailabilityChange>(stream, version)?;
+            random_unit_tables = read_count_vec::<RandomUnitTable>(stream, version)?;
+            if version > 24 {
+                random_item_tables = read_count_vec::<RandomItemTable>(stream, version)?;
+            }
+        }
+
         Ok(Self {
             version,
-            saves: AutoReadable::read(stream)?,
-            editor_version: AutoReadable::read(stream)?,
-            build_version: if version > 27 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            name: AutoReadable::read(stream)?,
-            author: AutoReadable::read(stream)?,
-            description: AutoReadable::read(stream)?,
-            recommended_players: AutoReadable::read(stream)?,
-            camera_bounds: AutoReadable::read(stream)?,
-            camera_bounds_complements: AutoReadable::read(stream)?,
-            playable_size: AutoReadable::read(stream)?,
-            flags: AutoReadable::read(stream)?,
-            tileset: AutoReadable::read(stream)?,
-            campaign_background: AutoReadable::read(stream)?,
-            loading_screen_model: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            loading_screen_text: AutoReadable::read(stream)?,
-            loading_screen_title: AutoReadable::read(stream)?,
-            loading_screen_subtitle: AutoReadable::read(stream)?,
-            loading_screen: AutoReadable::read(stream)?,
-            prologue_screen_model: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            prologue_screen_text: AutoReadable::read(stream)?,
-            prologue_screen_title: AutoReadable::read(stream)?,
-            prologue_screen_subtitle: AutoReadable::read(stream)?,
-            use_terrain_fog: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            fog_height: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            fog_density: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            fog_color: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            global_weather: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            sound_environment: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            light_environment_tileset: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            water_vertex_color: if version > 24 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            script_mode: if version > 27 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            graphics_mode: if version > 30 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            unknown1: if version > 30 {
-                Some(AutoReadable::read(stream)?)
-            } else {
-                None
-            },
-            players: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut players: Vec<Player> = Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    players.push(Player::load(stream, version)?);
-                }
-                players
-            },
-            forces: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut forces: Vec<Force> = Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    forces.push(Force::load(stream, version)?);
-                }
-                forces
-            },
-            upgrade_availability_changes: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut upgrade_availability_changes: Vec<UpgradeAvailabilityChange> =
-                    Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    upgrade_availability_changes
-                        .push(UpgradeAvailabilityChange::load(stream, version)?);
-                }
-                upgrade_availability_changes
-            },
-            tech_availability_changes: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut tech_availability_changes: Vec<TechAvailabilityChange> =
-                    Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    tech_availability_changes.push(TechAvailabilityChange::load(stream, version)?);
-                }
-                tech_availability_changes
-            },
-            random_unit_tables: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut random_unit_tables: Vec<RandomUnitTable> =
-                    Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    random_unit_tables.push(RandomUnitTable::load(stream, version)?);
-                }
-                random_unit_tables
-            },
-            random_item_tables: {
-                let count: u32 = AutoReadable::read(stream)?;
-                let mut random_item_tables: Vec<RandomItemTable> =
-                    Vec::with_capacity(count as usize);
-                for _ in 0..count {
-                    random_item_tables.push(RandomItemTable::load(stream, version)?);
-                }
-                random_item_tables
-            },
+            saves,
+            editor_version,
+            build_version,
+            name,
+            author,
+            description,
+            recommended_players,
+            camera_bounds,
+            camera_bounds_complements,
+            playable_size,
+            flags,
+            tileset,
+            campaign_background,
+            loading_screen_model,
+            loading_screen_text,
+            loading_screen_title,
+            loading_screen_subtitle,
+            loading_screen,
+            prologue_screen_model,
+            prologue_screen_text,
+            prologue_screen_title,
+            prologue_screen_subtitle,
+            use_terrain_fog,
+            fog_height,
+            fog_density,
+            fog_color,
+            global_weather,
+            sound_environment,
+            light_environment_tileset,
+            water_vertex_color,
+            script_mode,
+            graphics_mode,
+            game_data_version,
+            default_camera_zoom,
+            max_camera_zoom,
+            min_camera_zoom,
+            skipped_optional_sections,
+            players,
+            forces,
+            upgrade_availability_changes,
+            tech_availability_changes,
+            random_unit_tables,
+            random_item_tables,
         })
     }
 }
 
 /// "TRIGSTR_007" / "TRIGSTR_007ab" / "TRIGSTR_7" / "TRIGSTR_-007"
-const TRAGGER_STR_RE: &str = r#""TRIGSTR_(-?\d+)(?:\w+)?""#;
+const TRIGGER_STR_RE: &str = r#""TRIGSTR_(-?\d+)(?:\w+)?""#;
 
 impl War3MapW3i {
-    /// Get the build version of the map
+    /// Get the build version of the map as `major * 100 + minor` (e.g. 1.32 → 132)
     pub fn get_build_version(&self) -> u32 {
         match self.build_version {
             Some(version) => version[0] * 100 + version[1],
@@ -248,15 +308,15 @@ impl War3MapW3i {
         }
     }
 
-    /// Get the trigger string map
+    /// Collect TRIGSTR references from serialized map info → string table ids
     pub fn trigger_string_map(&self) -> Result<HashMap<String, i32>, ParserError> {
-        let re = Regex::new(TRAGGER_STR_RE)?;
+        let re = Regex::new(TRIGGER_STR_RE)?;
         let json = serde_json::to_string(&self)?;
         let mut trigger_strings = HashMap::new();
         for caps in re.captures_iter(json.as_str()) {
             let original = caps
                 .get(0)
-                .ok_or(ParserError::FailedToFindRegex(TRAGGER_STR_RE.to_string()))?
+                .ok_or(ParserError::FailedToFindRegex(TRIGGER_STR_RE.to_string()))?
                 .as_str()
                 .to_string();
             if let Some(id) = caps.get(1) {

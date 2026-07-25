@@ -6,17 +6,20 @@
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/wesleyel/war3parser/build.yml)](https://github.com/wesleyel/war3parser/actions/workflows/build.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/wesleyel/war3parser)](https://github.com/wesleyel/war3parser/releases)
 
-`war3parser` is a library for parsing and extracting Warcraft III map files. It provides functionality to extract data from MPQ files and supports parsing various file formats.
+`war3parser` is a library for parsing and extracting Warcraft III map files. It extracts data from MPQ archives and parses common map formats across classic and Reforged versions.
 
 ## Features
 
-- Extract files from MPQ archives
-- Support for parsing W3I, WTS, and other file formats
-- Command-line tool for file extraction and export
+- Extract files from MPQ archives (by known name)
+- Parse **w3i** map info across versions **18 → 33** (ROC, TFT, 1.31+, Reforged, WC3 2.0)
+- Parse **wts** string tables (comment lines, `\n` / `\r\n`, BOM)
+- Parse **imp** imports, minimap/preview **BLP/TGA** images
+- Handle protected / headerless maps (no `HM3W`, truncated optional w3i sections, missing listfile)
+- WASM bindings + browser playground
 
 ## Usage
 
-### use as a library
+### as a library
 
 ```bash
 cargo add war3parser
@@ -26,12 +29,12 @@ cargo add war3parser
 use war3parser::war3map_metadata::War3MapMetadata;
 
 let buffer = std::fs::read("path/to/map.w3x").unwrap();
-let metadata = War3MapMetadata::from(&buffer).unwrap();
-
-metadata.save("out");
+let mut metadata = War3MapMetadata::from(&buffer).unwrap();
+metadata.update_string_table().ok();
+metadata.save("out").unwrap();
 ```
 
-### use as a CLI
+### as a CLI
 
 ```bash
 cargo install war3parser-cli
@@ -56,19 +59,60 @@ Options:
   -V, --version  Print version
 ```
 
-### use as a WASM
+### as WASM
 
 ```bash
 npm install @wesleyel/war3parser
 ```
 
 ```javascript
-import { WasmMapInfo } from "@wesleyel/war3parser";
+import init, { parse_map, version } from "@wesleyel/war3parser";
 
-const mapInfo = WasmMapInfo.new(Uint8Array.from(buffer));
-
-console.log(mapInfo);
+await init();
+const meta = parse_map(new Uint8Array(buffer));
+console.log(version(), meta?.map_info?.name, meta?.strings?.length);
 ```
+
+`parse_map` returns:
+
+- `header` — HM3W presence/name/max players
+- `map_info` — full w3i (TRIGSTR-resolved when `.wts` is present)
+- `images` — minimap/preview as PNG data URLs
+- `imports` — `war3map.imp` entries
+- `strings` — sorted WTS entries
+- `files` — `(listfile)` paths when available
+- `parse_ms` — parse duration
+
+`get_map_info` remains as a compatible alias of `parse_map`.
+
+### Web playground
+
+Local demo (builds WASM first):
+
+```bash
+just serve-playground
+# → http://localhost:5173/
+```
+
+Drop any `.w3x` / `.w3m`. Parsing is 100% in-browser; nothing is uploaded.
+
+Static build:
+
+```bash
+just build-playground
+# output: playground/dist-site/
+```
+
+## w3i version support
+
+| Version | Era | Notes |
+|--------:|-----|-------|
+| 18 | ROC | Base layout |
+| 25 | TFT | Loading models, fog, random item tables |
+| 28 | 1.31 | Build version + script language |
+| 31 | Reforged | Graphics modes, game data version, enemy priorities |
+| 32–33 | WC3 2.0 | Camera zoom defaults |
+| * | protected | `0xFF` optional-section skip after forces |
 
 ## Contributing
 

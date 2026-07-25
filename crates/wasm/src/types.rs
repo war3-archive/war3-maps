@@ -1,8 +1,9 @@
 use war3parser::parser::w3i::War3MapW3i;
 use war3parser::prelude::{War3Image as War3ImageOri, War3ImageBase64};
+use war3parser::war3map_metadata::War3MapHeader;
 
 /// Preview and minimap images
-#[derive(Debug, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct War3Image {
     pub data_url: String,
@@ -10,23 +11,47 @@ pub struct War3Image {
     pub height: u32,
     pub filename: String,
 }
-impl From<&War3ImageOri> for War3Image {
-    fn from(image: &War3ImageOri) -> Self {
+
+impl TryFrom<&War3ImageOri> for War3Image {
+    type Error = ();
+
+    fn try_from(image: &War3ImageOri) -> Result<Self, Self::Error> {
         let width = image.data.width();
         let height = image.data.height();
-        let war3image_base64 = War3ImageBase64::try_from((*image).clone()).unwrap();
-        Self {
+        let war3image_base64 = War3ImageBase64::try_from((*image).clone()).map_err(|_| ())?;
+        Ok(Self {
             data_url: war3image_base64.data,
             width,
             height,
             filename: war3image_base64.filename,
-        }
+        })
     }
 }
-// Full information for wasm
-#[derive(Debug, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
+
+#[derive(Debug, Clone, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct StringTableEntry {
+    pub id: i32,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ImportEntry {
+    pub path: String,
+    pub is_custom: u8,
+}
+
+/// Full map metadata exposed to JavaScript
+#[derive(Debug, Clone, tsify_next::Tsify, serde::Serialize, serde::Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct War3MapMetadata {
+    pub header: War3MapHeader,
     pub map_info: Option<War3MapW3i>,
     pub images: Vec<War3Image>,
+    pub imports: Option<Vec<ImportEntry>>,
+    pub strings: Option<Vec<StringTableEntry>>,
+    pub files: Option<Vec<String>>,
+    /// Wall-clock milliseconds spent parsing
+    pub parse_ms: f64,
 }

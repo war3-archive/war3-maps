@@ -9,7 +9,7 @@ use crate::parser::error::ParserError;
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Force {
     pub flags: u32,
     pub player_masks: u32,

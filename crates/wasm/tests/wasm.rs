@@ -7,6 +7,10 @@ fn load_map() -> &'static [u8] {
     include_bytes!("../../../test_data/Legion_TD_11.1c_TeamOZE.w3x")
 }
 
+fn load_dota() -> &'static [u8] {
+    include_bytes!("../../../test_data/DotA v6.83dAI PMV 1.42 EN.w3x")
+}
+
 #[wasm_bindgen_test]
 fn test_w3x_parse() {
     let map = load_map();
@@ -18,4 +22,15 @@ fn test_wasm_mapinfo() {
     let map = load_map();
     let map_info = War3MapMetadata::from(map).expect("failed to parse map info");
     assert!(map_info.map_info.is_some());
+    assert!(map_info.header.has_hm3w);
+    assert!(map_info.wts.is_some());
+}
+
+#[wasm_bindgen_test]
+fn test_dota_mapinfo() {
+    let map = load_dota();
+    let meta = War3MapMetadata::from(map).expect("dota metadata");
+    let info = meta.map_info.expect("dota w3i");
+    assert_eq!(info.version, 25);
+    assert!(info.skipped_optional_sections);
 }
