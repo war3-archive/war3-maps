@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use war3parser::{parser::w3x::War3MapW3x, war3map_metadata::War3MapMetadata};
+use war3parser::prelude::{War3MapMetadata, War3MapW3x};
 use wasm_bindgen_test::*;
 
 fn load_map() -> &'static [u8] {
@@ -14,23 +14,24 @@ fn load_dota() -> &'static [u8] {
 #[wasm_bindgen_test]
 fn test_w3x_parse() {
     let map = load_map();
-    let _w3x = War3MapW3x::from_buffer(map).expect("failed to parse w3x");
+    let w3x = War3MapW3x::from_buffer(map).expect("failed to parse w3x");
+    assert!(w3x.header.has_hm3w);
 }
 
 #[wasm_bindgen_test]
 fn test_wasm_mapinfo() {
     let map = load_map();
-    let map_info = War3MapMetadata::from(map).expect("failed to parse map info");
-    assert!(map_info.map_info.is_some());
-    assert!(map_info.header.has_hm3w);
-    assert!(map_info.wts.is_some());
+    let snapshot = War3MapMetadata::parse_snapshot(map).expect("failed to parse map info");
+    assert!(snapshot.map_info.is_some());
+    assert!(snapshot.header.has_hm3w);
+    assert!(snapshot.strings.is_some());
 }
 
 #[wasm_bindgen_test]
 fn test_dota_mapinfo() {
     let map = load_dota();
-    let meta = War3MapMetadata::from(map).expect("dota metadata");
-    let info = meta.map_info.expect("dota w3i");
+    let snapshot = War3MapMetadata::parse_snapshot(map).expect("dota metadata");
+    let info = snapshot.map_info.expect("dota w3i");
     assert_eq!(info.version, 25);
     assert!(info.skipped_optional_sections);
 }

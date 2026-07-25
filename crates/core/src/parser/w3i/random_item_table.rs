@@ -6,7 +6,7 @@ use crate::parser::{
 };
 
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -18,7 +18,7 @@ pub struct RandomItem {
 }
 
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -29,7 +29,7 @@ pub struct RandomItemSet {
 }
 
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]

@@ -133,7 +133,7 @@ function renderOverview(data: MapMetadata, file: FileContext): HTMLElement {
   const chips = el("div", "flags");
   chips.append(el("span", "chip ok", `w3i v${info?.version ?? "?"}`));
   chips.append(el("span", "chip", formatBytes(file.size)));
-  chips.append(el("span", "chip", `${Math.round(data.parse_ms)} ms`));
+  chips.append(el("span", "chip", `${Math.round(data.parse_ms ?? 0)} ms`));
   chips.append(
     el(
       "span",

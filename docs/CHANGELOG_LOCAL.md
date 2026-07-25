@@ -1,5 +1,13 @@
 # Local improvement notes (0.3.x)
 
+## Workspace structure
+- Renamed `crates/lib` → `crates/core` (package name still `war3parser`)
+- Core split: `parser` (format readers) + `model` (shared portable types)
+- Features: `default = ["serde"]`; `typescript` only for wasm; `wasm` deprecated alias
+- CLI depends on core+serde only (no wasm-bindgen)
+- WASM is thin glue over `MapSnapshot`; removed duplicated DTOs
+- Shared types: `War3MapHeader`, `War3ImageData`, `ImportEntry`, `StringTableEntry`, `MapSnapshot`
+
 ## Parser
 - Fix w3i `0xFF` optional-section skip (DotA classic)
 - Fix RandomUnitTable row count

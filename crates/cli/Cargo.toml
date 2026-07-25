@@ -11,9 +11,7 @@ categories.workspace = true
 license.workspace = true
 readme = "../../README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-war3parser = { package = "war3parser", path = "../lib", version = "0.3.0" }
+war3parser = { workspace = true, features = ["serde"] }
 clap = { version = "4.5.9", features = ["derive"] }
 anyhow = "1.0.95"

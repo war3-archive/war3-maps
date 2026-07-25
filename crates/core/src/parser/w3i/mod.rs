@@ -8,7 +8,6 @@ pub mod upgrade_availability_change;
 use std::collections::HashMap;
 
 use binary_reader::BinaryReader;
-use regex::Regex;
 
 use crate::parser::binary_reader::{AutoReadable, BinaryReadable};
 
@@ -30,7 +29,7 @@ use {
 /// - 31: Reforged supported modes + game data version; player enemy priorities
 /// - 32/33: camera zoom defaults (WC3 2.0)
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -296,9 +295,6 @@ impl BinaryReadable for War3MapW3i {
     }
 }
 
-/// "TRIGSTR_007" / "TRIGSTR_007ab" / "TRIGSTR_7" / "TRIGSTR_-007"
-const TRIGGER_STR_RE: &str = r#""TRIGSTR_(-?\d+)(?:\w+)?""#;
-
 impl War3MapW3i {
     /// Get the build version of the map as `major * 100 + minor` (e.g. 1.32 → 132)
     pub fn get_build_version(&self) -> u32 {
@@ -308,23 +304,37 @@ impl War3MapW3i {
         }
     }
 
-    /// Collect TRIGSTR references from serialized map info → string table ids
+    /// Collect TRIGSTR references from serialized map info → string table ids.
+    ///
+    /// Requires the `serde` feature.
     pub fn trigger_string_map(&self) -> Result<HashMap<String, i32>, ParserError> {
-        let re = Regex::new(TRIGGER_STR_RE)?;
-        let json = serde_json::to_string(&self)?;
-        let mut trigger_strings = HashMap::new();
-        for caps in re.captures_iter(json.as_str()) {
-            let original = caps
-                .get(0)
-                .ok_or(ParserError::FailedToFindRegex(TRIGGER_STR_RE.to_string()))?
-                .as_str()
-                .to_string();
-            if let Some(id) = caps.get(1) {
-                if let Ok(id) = id.as_str().parse::<i32>() {
-                    trigger_strings.insert(original, id);
-                };
-            };
+        #[cfg(feature = "serde")]
+        {
+            /// "TRIGSTR_007" / "TRIGSTR_007ab" / "TRIGSTR_7" / "TRIGSTR_-007"
+            const TRIGGER_STR_RE: &str = r#""TRIGSTR_(-?\d+)(?:\w+)?""#;
+
+            let re = regex::Regex::new(TRIGGER_STR_RE)?;
+            let json = serde_json::to_string(&self)?;
+            let mut trigger_strings = HashMap::new();
+            for caps in re.captures_iter(json.as_str()) {
+                let original = caps
+                    .get(0)
+                    .ok_or_else(|| ParserError::FailedToFindRegex(TRIGGER_STR_RE.to_string()))?
+                    .as_str()
+                    .to_string();
+                if let Some(id) = caps.get(1) {
+                    if let Ok(id) = id.as_str().parse::<i32>() {
+                        trigger_strings.insert(original, id);
+                    }
+                }
+            }
+            Ok(trigger_strings)
         }
-        Ok(trigger_strings)
+
+        #[cfg(not(feature = "serde"))]
+        {
+            let _ = self;
+            Err(ParserError::FeatureRequired("serde"))
+        }
     }
 }

@@ -11,8 +11,6 @@ categories.workspace = true
 license.workspace = true
 readme = "../../README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 binary-reader = "0.4.5"
 image = { workspace = true }
@@ -27,6 +25,9 @@ tsify-next = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 
 [features]
-default = ["wasm"]
+default = ["serde"]
 serde = ["dep:serde", "dep:serde_json"]
-wasm = ["serde", "dep:tsify-next", "dep:wasm-bindgen"]
+# Enables Tsify/wasm-bindgen derives on API types. Only the WASM crate should enable this.
+typescript = ["serde", "dep:tsify-next", "dep:wasm-bindgen"]
+# Deprecated alias kept for downstream compatibility.
+wasm = ["typescript"]

@@ -48,7 +48,7 @@ async function handleFile(file: File) {
     paintWorkspace();
     const info = data.map_info;
     setStatus(
-      `OK · ${file.name} · ${formatBytes(file.size)} · ${Math.round(data.parse_ms)} ms · w3i v${
+      `OK · ${file.name} · ${formatBytes(file.size)} · ${Math.round(data.parse_ms ?? 0)} ms · w3i v${
         info?.version ?? "?"
       } · ${info?.players?.length ?? 0} players`,
       "ok",

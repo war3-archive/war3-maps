@@ -4,7 +4,7 @@ use super::error::ParserError;
 
 /// String table (`war3map.wts`)
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]

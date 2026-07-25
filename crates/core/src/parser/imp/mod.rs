@@ -9,7 +9,7 @@ use super::{
 
 /// Import entry
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -23,7 +23,7 @@ pub struct Import {
 
 /// Import table
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]

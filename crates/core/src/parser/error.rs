@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// Custom error types
+/// Custom error types for parsing and metadata conversion.
 #[derive(Error, Debug)]
 pub enum ParserError {
     #[error("Failed to find regex: {0}")]
@@ -11,6 +11,8 @@ pub enum ParserError {
     MapFileNotFound(String),
     #[error("Failed to serialize map info")]
     FailedToSerializeMapInfo,
+    #[error("feature `{0}` is required for this operation")]
+    FeatureRequired(&'static str),
     #[error("Failed to load image")]
     FailedToLoadImage(#[from] image::ImageError),
     #[error("Failed to load BLP image")]
@@ -23,6 +25,7 @@ pub enum ParserError {
     RegexError(#[from] regex::Error),
     #[error("From UTF-8 error")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[cfg(feature = "serde")]
     #[error("Failed to serialize")]
     FailedToSerialize(#[from] serde_json::Error),
 }

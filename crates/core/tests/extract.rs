@@ -11,6 +11,7 @@ fn test_w3x_parse() {
 
     let mut w3x_box = Box::new(w3x);
     eprintln!("w3x files: {:?}", w3x_box.files);
+    assert!(w3x_box.header.has_hm3w);
 
     let map_info = w3x_box.read_map_info().expect("failed to read map info");
     eprintln!("map info: {:#?}", map_info);

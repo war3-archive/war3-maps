@@ -71,12 +71,15 @@ declare module "@wesleyel/war3parser" {
     forces: Force[];
   }
 
-  export interface War3Image {
+  export interface War3ImageData {
     data_url: string;
     width: number;
     height: number;
     filename: string;
   }
+
+  /** @deprecated alias of War3ImageData */
+  export type War3Image = War3ImageData;
 
   export interface StringTableEntry {
     id: number;
@@ -96,16 +99,19 @@ declare module "@wesleyel/war3parser" {
     color: number[];
   }
 
+  /** Portable parse result (Rust: MapSnapshot, TS name kept for API stability). */
   export interface War3MapMetadata {
     header: War3MapHeader;
     map_info?: War3MapW3i | null;
-    images: War3Image[];
+    images: War3ImageData[];
     minimap_icons: MinimapIcon[];
     imports?: ImportEntry[] | null;
     strings?: StringTableEntry[] | null;
     files?: string[] | null;
-    parse_ms: number;
+    parse_ms?: number | null;
   }
+
+  export type MapSnapshot = War3MapMetadata;
 
   export default function init(module_or_path?: unknown): Promise<unknown>;
   export function parse_map(buffer: Uint8Array): War3MapMetadata | undefined;

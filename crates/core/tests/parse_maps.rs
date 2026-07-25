@@ -14,7 +14,7 @@ fn all_fixtures_parse_w3i() {
         let mut w3x =
             War3MapW3x::from_buffer(&buffer).unwrap_or_else(|e| panic!("w3x {path}: {e}"));
         assert_eq!(
-            w3x.has_hm3w, *expect_hm3w,
+            w3x.header.has_hm3w, *expect_hm3w,
             "{path} hm3w expected {expect_hm3w}"
         );
 

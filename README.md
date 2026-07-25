@@ -8,6 +8,23 @@
 
 `war3parser` is a library for parsing and extracting Warcraft III map files. It extracts data from MPQ archives and parses common map formats across classic and Reforged versions.
 
+## Workspace layout
+
+```text
+crates/
+  core/   # war3parser        — pure parsing + shared model (no wasm-bindgen by default)
+  cli/    # war3parser-cli    — thin CLI over core
+  wasm/   # war3parser-wasm   — thin wasm-bindgen glue over core::model::MapSnapshot
+```
+
+| Crate | Depends on | Notes |
+|-------|------------|-------|
+| `war3parser` (core) | — | `serde` default; optional `typescript` enables Tsify derives |
+| `war3parser-cli` | core + `serde` | never pulls wasm-bindgen |
+| `war3parser-wasm` | core + `typescript` | only binds `parse_map` / `version`; types live in core |
+
+Shared API types (`MapSnapshot`, `War3ImageData`, `ImportEntry`, `StringTableEntry`, `War3MapHeader`, …) live in `war3parser::model` so CLI and WASM do not redefine DTOs.
+
 ## Features
 
 - Extract files from MPQ archives (by known name)
@@ -26,12 +43,18 @@ cargo add war3parser
 ```
 
 ```rust
-use war3parser::war3map_metadata::War3MapMetadata;
+use war3parser::prelude::War3MapMetadata;
 
 let buffer = std::fs::read("path/to/map.w3x").unwrap();
 let mut metadata = War3MapMetadata::from(&buffer).unwrap();
 metadata.update_string_table().ok();
+
+// Portable snapshot shared with the WASM API
+let snapshot = metadata.snapshot().unwrap();
+println!("{:?}", snapshot.map_info.as_ref().map(|i| &i.name));
+
 metadata.save("out").unwrap();
+// or: War3MapMetadata::parse_snapshot(&buffer)
 ```
 
 ### as a CLI

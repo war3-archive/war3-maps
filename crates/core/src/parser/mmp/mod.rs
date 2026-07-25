@@ -30,7 +30,7 @@ impl From<i32> for MinimapIconType {
 
 /// Single minimap icon entry
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -54,7 +54,7 @@ impl MinimapIcon {
 
 /// Minimap icon table (`war3map.mmp`)
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]

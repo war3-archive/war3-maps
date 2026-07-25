@@ -858,8 +858,6 @@ name = "war3parser-wasm"
 version = "0.3.0"
 dependencies = [
  "js-sys",
- "serde",
- "tsify-next",
  "war3parser",
  "wasm-bindgen",
  "wasm-bindgen-test",

@@ -74,7 +74,7 @@ fn extract_file_buffer(w3x: &mut War3MapW3x, file_name: &str) -> anyhow::Result<
 }
 
 fn save_file(file_name: &str, out_dir: &Path, file_content: &[u8]) -> anyhow::Result<()> {
-    let out_file_path = out_dir.join(file_name.replace("\\", "/"));
+    let out_file_path = out_dir.join(file_name.replace('\\', "/"));
     if let Some(parent) = out_file_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -96,7 +96,7 @@ fn main() -> anyhow::Result<()> {
             let mut w3x = War3MapW3x::new(map_path.to_path_buf())?;
             let file_content = extract_file_buffer(&mut w3x, &file_name)?;
             save_file(&file_name, out_dir, &file_content)?;
-            println!("✅ Extracted file: {}", file_name);
+            println!("✅ Extracted file: {file_name}");
             Ok(())
         }
         Command::ListFiles { map_path } => {
@@ -104,8 +104,8 @@ fn main() -> anyhow::Result<()> {
             let w3x = War3MapW3x::new(map_path.to_path_buf())?;
             let files = w3x
                 .files
-                .ok_or(anyhow::anyhow!("Failed to get files from MPQ"))?;
-            println!("{:#?}", files);
+                .ok_or_else(|| anyhow::anyhow!("Failed to get files from MPQ"))?;
+            println!("{files:#?}");
             Ok(())
         }
         Command::ExtractImages {
@@ -116,11 +116,9 @@ fn main() -> anyhow::Result<()> {
             let map_path = Path::new(&map_path);
             let out_dir = Path::new(&out_dir);
 
-            let mut w3x =
-                War3MapW3x::new(map_path.to_path_buf()).expect("Failed to parse map file");
+            let mut w3x = War3MapW3x::new(map_path.to_path_buf())?;
             let files = w3x.files.clone().unwrap_or_default();
 
-            /// Handle image extraction
             fn handle_image(
                 w3x: &mut War3MapW3x,
                 file: &str,
@@ -133,7 +131,7 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     let image = War3Image::from_buffer(&file_content, file)?;
                     let out_file_path = out_dir.join(
-                        file.replace("\\", "/")
+                        file.replace('\\', "/")
                             .replace(".blp", ".png")
                             .replace(".tga", ".png"),
                     );
@@ -145,15 +143,15 @@ fn main() -> anyhow::Result<()> {
                 Ok(())
             }
 
-            files
+            for file in files
                 .iter()
                 .filter(|file| file.ends_with(".tga") || file.ends_with(".blp"))
-                .for_each(
-                    |file| match handle_image(&mut w3x, file, out_dir, keep_ori) {
-                        Ok(_) => println!("✅ Extracted image: {}", file),
-                        Err(e) => println!("❌ Failed to extract '{}': {}", file, e),
-                    },
-                );
+            {
+                match handle_image(&mut w3x, file, out_dir, keep_ori) {
+                    Ok(_) => println!("✅ Extracted image: {file}"),
+                    Err(e) => println!("❌ Failed to extract '{file}': {e}"),
+                }
+            }
             Ok(())
         }
         Command::ConvertImage { file_name, out_dir } => {
@@ -166,7 +164,7 @@ fn main() -> anyhow::Result<()> {
                     image_path
                         .with_extension("png")
                         .file_name()
-                        .ok_or(anyhow::anyhow!("Failed to get file name"))?,
+                        .ok_or_else(|| anyhow::anyhow!("Failed to get file name"))?,
                 )
             } else {
                 image_path.with_extension("png")
@@ -182,15 +180,14 @@ fn main() -> anyhow::Result<()> {
                 std::fs::create_dir_all(out_dir)?;
             }
             let buffer = std::fs::read(map_path)?;
-            let mut metadata = War3MapMetadata::from(&buffer).ok_or(anyhow::anyhow!(
-                "Failed to parse metadata from '{}'",
-                map_path.display()
-            ))?;
+            let mut metadata = War3MapMetadata::from(&buffer).ok_or_else(|| {
+                anyhow::anyhow!("Failed to parse metadata from '{}'", map_path.display())
+            })?;
             metadata.update_string_table().ok();
             metadata.save(
                 out_dir
                     .to_str()
-                    .ok_or(anyhow::anyhow!("Failed to get output directory"))?,
+                    .ok_or_else(|| anyhow::anyhow!("Failed to get output directory"))?,
             )?;
             println!(
                 "✅ Dumped '{}' metadata to '{}'",

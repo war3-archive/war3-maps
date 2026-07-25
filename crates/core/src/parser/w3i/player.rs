@@ -4,7 +4,7 @@ use crate::parser::binary_reader::{AutoReadable, BinaryReadable};
 use crate::parser::error::ParserError;
 
 #[cfg_attr(
-    feature = "wasm",
+    feature = "typescript",
     derive(tsify_next::Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
