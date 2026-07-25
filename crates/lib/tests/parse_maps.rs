@@ -80,3 +80,26 @@ fn tower_has_imports() {
     let imp = w3x.read_imports().unwrap();
     assert!(!imp.entries.is_empty());
 }
+
+#[test]
+fn tower_minimap_icons() {
+    let path = "../../test_data/TowerSurvivorsv1.71.w3x";
+    let buffer = std::fs::read(path).unwrap();
+    let mut w3x = War3MapW3x::from_buffer(&buffer).unwrap();
+    let mmp = w3x.read_minimap_icons().expect("mmp");
+    assert_eq!(mmp.icons.len(), 8);
+    assert!(mmp.icons.iter().all(|i| i.icon_type == 2));
+    // first tower player should be roughly red-ish after BGRA→RGBA
+    let c = mmp.icons[0].color;
+    assert!(c[0] > 200, "expected red channel high, got {:?}", c);
+}
+
+#[test]
+fn dota_minimap_has_buildings_and_starts() {
+    let path = "../../test_data/DotA v6.83dAI PMV 1.42 EN.w3x";
+    let buffer = std::fs::read(path).unwrap();
+    let meta = War3MapMetadata::from(&buffer).unwrap();
+    let mmp = meta.minimap_icons.expect("mmp");
+    assert!(mmp.icons.iter().any(|i| i.icon_type == 1));
+    assert!(mmp.icons.iter().any(|i| i.icon_type == 2));
+}

@@ -37,6 +37,7 @@ pub mod prelude {
         error::ParserError,
         img::{War3Image, War3ImageBase64},
         imp::War3MapImp,
+        mmp::{MinimapIcon, War3MapMmp},
         w3i::War3MapW3i,
         w3x::War3MapW3x,
         wts::War3MapWts,

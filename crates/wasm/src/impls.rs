@@ -1,7 +1,7 @@
 use war3parser::war3map_metadata::War3MapMetadata as War3MapMetadataOri;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{ImportEntry, StringTableEntry, War3Image, War3MapMetadata};
+use crate::{ImportEntry, MinimapIcon, StringTableEntry, War3Image, War3MapMetadata};
 
 fn build_metadata(buffer: &[u8]) -> Option<War3MapMetadata> {
     let started = js_sys::Date::now();
@@ -15,6 +15,12 @@ fn build_metadata(buffer: &[u8]) -> Option<War3MapMetadata> {
         .iter()
         .filter_map(|img| War3Image::try_from(img).ok())
         .collect();
+
+    let minimap_icons: Vec<MinimapIcon> = metadata
+        .minimap_icons
+        .as_ref()
+        .map(|m| m.icons.iter().map(MinimapIcon::from).collect())
+        .unwrap_or_default();
 
     let imports = metadata.imp.map(|imp| {
         let mut entries: Vec<ImportEntry> = imp
@@ -48,6 +54,7 @@ fn build_metadata(buffer: &[u8]) -> Option<War3MapMetadata> {
         header: metadata.header,
         map_info,
         images,
+        minimap_icons,
         imports,
         strings,
         files,

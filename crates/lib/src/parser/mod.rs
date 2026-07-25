@@ -19,8 +19,11 @@ pub mod w3x;
 /// [`War3Image`] parser for images
 pub mod img;
 
+/// [`War3MapMmp`] parser for `war3map.mmp` minimap icons
+pub mod mmp;
+
 #[doc(inline)]
 pub use {
-    binary_reader::BinaryReadable, error::ParserError, imp::War3MapImp, w3i::War3MapW3i,
-    w3x::War3MapW3x, wts::War3MapWts,
+    binary_reader::BinaryReadable, error::ParserError, imp::War3MapImp, mmp::War3MapMmp,
+    w3i::War3MapW3i, w3x::War3MapW3x, wts::War3MapWts,
 };

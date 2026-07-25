@@ -15,6 +15,13 @@ import {
   stripColorCodes,
   tilesetName,
 } from "../lib/format";
+import {
+  buildOverlayIcons,
+  countByType,
+  iconTypeLabel,
+  isMinimapImage,
+  paintMinimapCover,
+} from "../lib/minimap";
 
 export type TabId =
   | "overview"
@@ -117,9 +124,12 @@ function escapeHtml(s: string): string {
 function renderOverview(data: MapMetadata, file: FileContext): HTMLElement {
   const info = data.map_info;
   const wrap = el("div");
-  const hero = el("div", "card");
+  const hero = el("div", "card hero-card");
   const name = stripColorCodes(info?.name) || stripColorCodes(data.header.name) || file.name;
-  hero.append(el("div", "hero-name", escapeHtml(name)));
+
+  const heroTop = el("div", "hero-layout");
+  const heroText = el("div", "hero-text");
+  heroText.append(el("div", "hero-name", escapeHtml(name)));
   const chips = el("div", "flags");
   chips.append(el("span", "chip ok", `w3i v${info?.version ?? "?"}`));
   chips.append(el("span", "chip", formatBytes(file.size)));
@@ -134,10 +144,16 @@ function renderOverview(data: MapMetadata, file: FileContext): HTMLElement {
   if (info?.skipped_optional_sections) {
     chips.append(el("span", "chip warn", "Optional sections skipped (0xFF)"));
   }
-  hero.append(chips);
+  heroText.append(chips);
   if (info?.description) {
-    hero.append(el("p", "desc", escapeHtml(stripColorCodes(info.description))));
+    heroText.append(el("p", "desc", escapeHtml(stripColorCodes(info.description))));
   }
+  heroTop.append(heroText);
+
+  // Cover minimap with gold mines / buildings / player starts
+  const cover = buildCoverBlock(data);
+  if (cover) heroTop.append(cover);
+  hero.append(heroTop);
   wrap.append(hero);
 
   const grid = el("div", "grid-2");
@@ -164,6 +180,8 @@ function renderOverview(data: MapMetadata, file: FileContext): HTMLElement {
     ),
   );
 
+  const icons = buildOverlayIcons(data);
+  const counts = countByType(icons);
   grid.append(
     card(
       "Container",
@@ -174,6 +192,10 @@ function renderOverview(data: MapMetadata, file: FileContext): HTMLElement {
         ["Header flags", data.header.flags != null ? `0x${data.header.flags.toString(16)}` : "—"],
         ["Players", String(info?.players?.length ?? 0)],
         ["Forces", String(info?.forces?.length ?? 0)],
+        ["Minimap icons", String(icons.length)],
+        ["Gold mines", String(counts["Gold mine"] ?? 0)],
+        ["Buildings", String(counts.Building ?? 0)],
+        ["Start locs", String(counts["Player start"] ?? 0)],
         ["Strings", String(data.strings?.length ?? 0)],
         ["Imports", String(data.imports?.length ?? 0)],
         ["Listfile", data.files ? `${data.files.length} files` : "missing"],
@@ -322,6 +344,38 @@ function renderPlayers(data: MapMetadata): HTMLElement {
   return wrap;
 }
 
+function buildCoverBlock(data: MapMetadata): HTMLElement | null {
+  const minimap = (data.images ?? []).find((img) => isMinimapImage(img.filename));
+  if (!minimap) return null;
+
+  const icons = buildOverlayIcons(data);
+  const box = el("div", "cover-minimap");
+  const canvas = el("canvas", "cover-canvas") as HTMLCanvasElement;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", "Minimap with player starts and resources");
+  box.append(canvas);
+
+  const legend = el("div", "cover-legend");
+  const counts = countByType(icons);
+  for (const [label, n] of Object.entries(counts)) {
+    const item = el("span", "legend-item");
+    const swatch = el("span", `legend-swatch legend-${label.toLowerCase().replace(/\s+/g, "-")}`);
+    item.append(swatch, document.createTextNode(`${label} · ${n}`));
+    legend.append(item);
+  }
+  box.append(legend);
+
+  // Paint async after mount
+  requestAnimationFrame(() => {
+    void paintMinimapCover(canvas, minimap.data_url, icons, 300).catch((err) => {
+      console.warn(err);
+      box.classList.add("cover-error");
+    });
+  });
+
+  return box;
+}
+
 function renderImages(data: MapMetadata): HTMLElement {
   const wrap = el("div");
   const images = data.images ?? [];
@@ -329,25 +383,62 @@ function renderImages(data: MapMetadata): HTMLElement {
     wrap.append(el("div", "empty", "No minimap/preview images found"));
     return wrap;
   }
+
+  const icons = buildOverlayIcons(data);
   const grid = el("div", "image-grid");
+
   for (const img of images) {
     const cardEl = el("div", "image-card");
-    const image = el("img") as HTMLImageElement;
-    image.src = img.data_url;
-    image.alt = img.filename;
+    const isMap = isMinimapImage(img.filename);
+
+    if (isMap && icons.length) {
+      const canvas = el("canvas", "cover-canvas cover-canvas-lg") as HTMLCanvasElement;
+      canvas.setAttribute("aria-label", img.filename);
+      cardEl.append(canvas);
+      requestAnimationFrame(() => {
+        void paintMinimapCover(canvas, img.data_url, icons, 420);
+      });
+    } else {
+      const image = el("img") as HTMLImageElement;
+      image.src = img.data_url;
+      image.alt = img.filename;
+      cardEl.append(image);
+    }
+
     const meta = el("div", "meta");
     meta.innerHTML = `<span class="mono">${escapeHtml(img.filename)}</span>
-      <span>${img.width}×${img.height}</span>`;
+      <span>${img.width}×${img.height}${isMap ? " · annotated" : ""}</span>`;
     const actions = el("div", "meta");
     const a = el("a", "btn ghost") as HTMLAnchorElement;
     a.href = img.data_url;
     a.download = `${img.filename.replace(/[\\/]/g, "_")}.png`;
     a.textContent = "Download PNG";
     actions.append(a);
-    cardEl.append(image, meta, actions);
+    cardEl.append(meta, actions);
     grid.append(cardEl);
   }
+
   wrap.append(card("Images", grid, String(images.length)));
+
+  if (icons.length) {
+    const list = el("div", "table-wrap");
+    list.style.marginTop = "0.85rem";
+    const t = el("table", "data");
+    t.innerHTML = `<thead><tr><th>Type</th><th>X</th><th>Y</th><th>Color</th></tr></thead>`;
+    const tb = el("tbody");
+    for (const ic of icons.slice(0, 200)) {
+      const tr = el("tr");
+      tr.innerHTML = `<td>${escapeHtml(iconTypeLabel(ic.icon_type))}</td>
+        <td class="mono">${Math.round(ic.x)}</td>
+        <td class="mono">${Math.round(ic.y)}</td>
+        <td><span class="swatch" style="background:${ic.color}"></span> <span class="mono">${escapeHtml(ic.color)}</span></td>`;
+      tb.append(tr);
+    }
+    t.append(tb);
+    list.append(t);
+    wrap.append(card("Minimap icons (war3map.mmp)", list, String(icons.length)));
+  }
+
   return wrap;
 }
 

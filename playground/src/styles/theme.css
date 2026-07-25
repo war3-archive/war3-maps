@@ -540,3 +540,105 @@ table.data tr:hover td {
     grid-area: ctrl;
   }
 }
+
+/* —— Cover minimap (annotated) —— */
+.hero-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.hero-text {
+  min-width: 0;
+}
+
+.cover-minimap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.cover-canvas {
+  display: block;
+  width: 300px;
+  height: 300px;
+  border-radius: 12px;
+  border: 1px solid #2c3648;
+  box-shadow:
+    0 0 0 1px rgba(201, 162, 39, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+  background: #0a0d12;
+  image-rendering: pixelated;
+}
+
+.cover-canvas-lg {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.cover-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  display: inline-block;
+}
+
+.legend-gold-mine {
+  background: #e8b923;
+}
+
+.legend-building {
+  background: #d8dde6;
+  border-radius: 2px;
+}
+
+.legend-player-start {
+  background: conic-gradient(#ff0303, #0042ff, #1ce6b9, #fffc00, #ff0303);
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.cover-error::after {
+  content: "Failed to paint minimap overlay";
+  color: var(--err);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 800px) {
+  .hero-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cover-minimap {
+    justify-self: center;
+  }
+}

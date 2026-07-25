@@ -8,6 +8,7 @@ use super::{
     error::ParserError,
     img::War3Image,
     imp::War3MapImp,
+    mmp::War3MapMmp,
     w3i::War3MapW3i,
     wts::War3MapWts,
 };
@@ -166,5 +167,11 @@ impl War3MapW3x {
         .ok_or(ParserError::MapFileNotFound("war3mapPreview".to_string()))?;
         let data = self.read_file(filename)?;
         War3Image::from_buffer(&data, filename)
+    }
+
+    /// Read minimap icons (`war3map.mmp`) — gold mines, houses, player starts
+    pub fn read_minimap_icons(&mut self) -> Result<War3MapMmp, ParserError> {
+        let data = self.read_file("war3map.mmp")?;
+        War3MapMmp::load_bytes(&data)
     }
 }

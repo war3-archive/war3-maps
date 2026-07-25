@@ -3,8 +3,8 @@
 use std::path::Path;
 
 use crate::parser::{
-    error::ParserError, img::War3Image, imp::War3MapImp, w3i::War3MapW3i, w3x::War3MapW3x,
-    wts::War3MapWts,
+    error::ParserError, img::War3Image, imp::War3MapImp, mmp::War3MapMmp, w3i::War3MapW3i,
+    w3x::War3MapW3x, wts::War3MapWts,
 };
 
 /// HM3W container header fields (absent on pure-MPQ / some protected maps)
@@ -31,6 +31,8 @@ pub struct War3MapMetadata {
     pub imp: Option<War3MapImp>,
     pub wts: Option<War3MapWts>,
     pub images: Vec<War3Image>,
+    /// Minimap icons from `war3map.mmp` (gold mines, houses, starts)
+    pub minimap_icons: Option<War3MapMmp>,
     pub files: Option<Vec<String>>,
 }
 
@@ -68,6 +70,7 @@ impl War3MapMetadata {
             imp: w3x.read_imports().ok(),
             wts: w3x.read_string_table().ok(),
             images,
+            minimap_icons: w3x.read_minimap_icons().ok(),
             files: w3x.files.clone(),
         })
     }
@@ -128,6 +131,10 @@ impl War3MapMetadata {
             if let Some(files) = &self.files {
                 let files_path = out_dir.join("listfile.json");
                 std::fs::write(files_path, serde_json::to_string_pretty(files)?)?;
+            }
+            if let Some(mmp) = &self.minimap_icons {
+                let mmp_path = out_dir.join("war3map.mmp.json");
+                std::fs::write(mmp_path, serde_json::to_string_pretty(mmp)?)?;
             }
         }
 

@@ -88,10 +88,19 @@ declare module "@wesleyel/war3parser" {
     is_custom: number;
   }
 
+  /** war3map.mmp icon — coords on 256×256 minimap; type 0 mine / 1 house / 2 start */
+  export interface MinimapIcon {
+    icon_type: number;
+    x: number;
+    y: number;
+    color: number[];
+  }
+
   export interface War3MapMetadata {
     header: War3MapHeader;
     map_info?: War3MapW3i | null;
     images: War3Image[];
+    minimap_icons: MinimapIcon[];
     imports?: ImportEntry[] | null;
     strings?: StringTableEntry[] | null;
     files?: string[] | null;
