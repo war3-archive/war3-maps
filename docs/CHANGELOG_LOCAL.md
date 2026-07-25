@@ -26,5 +26,6 @@
 - wasm-opt disabled (bulk-memory incompatibility)
 
 ## Playground
-- Vite + vanilla TS under `playground/`
-- `just serve-playground` / `just build-playground`
+- Vite + React + Real World Materials UI under `playground/`
+- `just serve-playground` / `just build-playground` / `just build-pages`
+- GitHub Pages deploy via `.github/workflows/pages.yml` → https://wesleyel.github.io/war3parser/

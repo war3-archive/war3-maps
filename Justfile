@@ -29,3 +29,7 @@ serve-playground: build-wasm
 
 build-playground: build-wasm
     cd {{justfile_directory()}}/playground && npm install && npm run build
+
+# Production build for GitHub Pages (base = /war3parser/)
+build-pages: build-wasm
+    cd {{justfile_directory()}}/playground && npm install && GITHUB_PAGES=1 npm run build

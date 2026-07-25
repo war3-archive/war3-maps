@@ -1,0 +1,68 @@
+/* Real World Materials — tactile surfaces, ink, paper, metal */
+:root {
+  color-scheme: dark;
+
+  /* Base stone / charcoal workspace */
+  --rwm-void: #0c0b0a;
+  --rwm-stone-950: #141210;
+  --rwm-stone-900: #1c1917;
+  --rwm-stone-850: #231f1c;
+  --rwm-stone-800: #2a2522;
+  --rwm-stone-700: #3f3833;
+  --rwm-stone-600: #57534e;
+  --rwm-stone-500: #78716c;
+  --rwm-stone-400: #a8a29e;
+  --rwm-stone-300: #d6d3d1;
+  --rwm-stone-200: #e7e5e4;
+  --rwm-stone-100: #f5f5f4;
+
+  /* Paper / parchment elevated surfaces */
+  --rwm-paper: #1f1b17;
+  --rwm-paper-raised: #29231e;
+  --rwm-paper-sunken: #171411;
+  --rwm-paper-edge: rgba(255, 236, 210, 0.08);
+  --rwm-paper-edge-strong: rgba(255, 236, 210, 0.14);
+
+  /* Ink */
+  --rwm-ink: #f5f0e8;
+  --rwm-ink-muted: #b7aea2;
+  --rwm-ink-faint: #7c7368;
+
+  /* Metal accents (brass / copper) */
+  --rwm-brass: #c9a227;
+  --rwm-brass-bright: #e0b93a;
+  --rwm-brass-soft: rgba(201, 162, 39, 0.16);
+  --rwm-brass-glow: rgba(201, 162, 39, 0.28);
+  --rwm-copper: #b87333;
+
+  /* Status pigments */
+  --rwm-ok: #4ade80;
+  --rwm-ok-soft: rgba(74, 222, 128, 0.12);
+  --rwm-warn: #fbbf24;
+  --rwm-warn-soft: rgba(251, 191, 36, 0.12);
+  --rwm-err: #f87171;
+  --rwm-err-soft: rgba(248, 113, 113, 0.12);
+  --rwm-info: #7dd3fc;
+  --rwm-info-soft: rgba(125, 211, 252, 0.12);
+
+  /* Elevation / light */
+  --rwm-shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
+  --rwm-shadow-2: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --rwm-shadow-3: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 18px 48px rgba(0, 0, 0, 0.45);
+  --rwm-rim: inset 0 0 0 1px var(--rwm-paper-edge);
+
+  /* Geometry */
+  --rwm-radius-sm: 8px;
+  --rwm-radius: 14px;
+  --rwm-radius-lg: 20px;
+  --rwm-radius-pill: 999px;
+  --rwm-gap: 1rem;
+  --rwm-max: 1180px;
+
+  /* Type */
+  --rwm-font: "DM Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --rwm-mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* Fiber noise overlay */
+  --rwm-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}

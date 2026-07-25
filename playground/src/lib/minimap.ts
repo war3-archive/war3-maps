@@ -23,7 +23,7 @@ function rgbaCss(c: number[] | undefined, fallback = "#ffffff"): string {
 
 /**
  * Build overlay icons from `war3map.mmp`.
- * Falls back to w3i player start locations projected into 256-space when mmp has no starts.
+ * Falls back to w3i player start locations when mmp has no starts.
  */
 export function buildOverlayIcons(data: MapMetadata): OverlayIcon[] {
   const icons: OverlayIcon[] = [];
@@ -67,7 +67,6 @@ export function worldToMinimap(
 ): [number, number] {
   const cb = info.camera_bounds ?? [-8192, -8192, 8192, 8192];
   const comp = info.camera_bounds_complements ?? [0, 0, 0, 0];
-  // complements: left, right, bottom, top (tiles of 128)
   const left = (cb[0] ?? -8192) - (comp[0] ?? 0) * 128;
   const bottom = (cb[1] ?? -8192) - (comp[2] ?? 0) * 128;
   const right = (cb[2] ?? 8192) + (comp[1] ?? 0) * 128;
@@ -85,7 +84,7 @@ export function isMinimapImage(filename: string): boolean {
 }
 
 /**
- * Render minimap + icons onto a canvas. Resolves when the image has painted.
+ * Render minimap + icons onto a canvas.
  */
 export function paintMinimapCover(
   canvas: HTMLCanvasElement,
@@ -115,7 +114,6 @@ export function paintMinimapCover(
       const sx = size / MMP_SIZE;
       const sy = size / MMP_SIZE;
 
-      // gold mines → houses → player starts (on top)
       for (const t of [0, 1, 2]) {
         for (const ic of icons) {
           if (ic.icon_type !== t) continue;
@@ -143,7 +141,6 @@ function drawIcon(
   ctx.translate(x, y);
 
   if (type === 0) {
-    // Gold mine — gold disc
     const r = unit * 0.55;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -152,24 +149,20 @@ function drawIcon(
     ctx.lineWidth = Math.max(1.2, unit * 0.12);
     ctx.strokeStyle = "rgba(40, 28, 4, 0.85)";
     ctx.stroke();
-    // inner highlight
     ctx.beginPath();
     ctx.arc(-r * 0.25, -r * 0.25, r * 0.28, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255, 240, 160, 0.65)";
     ctx.fill();
   } else if (type === 1) {
-    // Neutral building / house
     const w = unit * 0.95;
     const h = unit * 0.75;
     ctx.fillStyle = color && color !== "rgba(255,255,255,1.000)" ? color : "#d8dde6";
     ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.lineWidth = Math.max(1, unit * 0.1);
-    // body
     ctx.beginPath();
     ctx.rect(-w * 0.4, -h * 0.05, w * 0.8, h * 0.55);
     ctx.fill();
     ctx.stroke();
-    // roof
     ctx.beginPath();
     ctx.moveTo(-w * 0.5, -h * 0.05);
     ctx.lineTo(0, -h * 0.55);
@@ -178,20 +171,16 @@ function drawIcon(
     ctx.fill();
     ctx.stroke();
   } else if (type === 2) {
-    // Player start — colored X (classic minimap style)
     const arm = unit * 0.62;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // dark outline
     ctx.strokeStyle = "rgba(0,0,0,0.85)";
     ctx.lineWidth = Math.max(3.2, unit * 0.38);
     strokeX(ctx, arm);
-    // colored stroke
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(2, unit * 0.24);
     strokeX(ctx, arm);
   } else {
-    // Unknown — small diamond
     const r = unit * 0.4;
     ctx.beginPath();
     ctx.moveTo(0, -r);

@@ -1,0 +1,77 @@
+name: Deploy playground to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "playground/**"
+      - "crates/wasm/**"
+      - "crates/core/**"
+      - "Justfile"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: playground/package-lock.json
+
+      - name: Build WASM package
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          wasm-pack build crates/wasm --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
+          cp crates/wasm/war3parser.d.ts dist/war3parser.d.ts
+          node -e "const fs=require('fs');const p='dist/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.name='@wesleyel/war3parser';j.types='war3parser.d.ts';fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')"
+
+      - name: Install & build playground
+        working-directory: playground
+        env:
+          GITHUB_PAGES: "1"
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playground/dist-site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

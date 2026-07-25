@@ -38,30 +38,30 @@ export const RACES: Record<number, string> = {
 
 /** Classic WC3 slot colors (player id 0–23). */
 export const SLOT_COLORS: string[] = [
-  "#ff0303", // 0 red
-  "#0042ff", // 1 blue
-  "#1ce6b9", // 2 teal
-  "#540081", // 3 purple
-  "#fffc00", // 4 yellow
-  "#fe8a0e", // 5 orange
-  "#20c000", // 6 green
-  "#e55bb0", // 7 pink
-  "#959697", // 8 gray
-  "#7ebff1", // 9 light blue
-  "#106246", // 10 dark green
-  "#4e2a04", // 11 brown
-  "#9b0000", // 12
-  "#0000c3", // 13
-  "#00eaff", // 14
-  "#be00fe", // 15
-  "#ebcd87", // 16
-  "#f8a48b", // 17
-  "#bfff80", // 18
-  "#dcb9eb", // 19
-  "#282828", // 20
-  "#ebf0ff", // 21
-  "#00781e", // 22
-  "#a46f33", // 23
+  "#ff0303",
+  "#0042ff",
+  "#1ce6b9",
+  "#540081",
+  "#fffc00",
+  "#fe8a0e",
+  "#20c000",
+  "#e55bb0",
+  "#959697",
+  "#7ebff1",
+  "#106246",
+  "#4e2a04",
+  "#9b0000",
+  "#0000c3",
+  "#00eaff",
+  "#be00fe",
+  "#ebcd87",
+  "#f8a48b",
+  "#bfff80",
+  "#dcb9eb",
+  "#282828",
+  "#ebf0ff",
+  "#00781e",
+  "#a46f33",
 ];
 
 export function slotColor(playerId: number): string {
@@ -71,13 +71,13 @@ export function slotColor(playerId: number): string {
 export function raceIcon(race: number): string {
   switch (race) {
     case 1:
-      return "🛡"; // Human
+      return "🛡";
     case 2:
-      return "⚔"; // Orc
+      return "⚔";
     case 3:
-      return "💀"; // Undead
+      return "💀";
     case 4:
-      return "🌙"; // Night Elf
+      return "🌙";
     default:
       return "◇";
   }
@@ -88,10 +88,7 @@ export function controllerLabel(playerType: number): string {
 }
 
 /** Players belonging to a force bitmask, sorted by id. */
-export function playersInForce<T extends { id: number }>(
-  mask: number,
-  players: T[],
-): T[] {
+export function playersInForce<T extends { id: number }>(mask: number, players: T[]): T[] {
   const m = mask >>> 0;
   return players
     .filter((p) => {
@@ -102,7 +99,6 @@ export function playersInForce<T extends { id: number }>(
     .sort((a, b) => a.id - b.id);
 }
 
-/** Common war3map.w3i map flags (bit → label). Unknown bits still shown as hex. */
 const MAP_FLAGS: Array<[number, string]> = [
   [0x0001, "Hide minimap in preview"],
   [0x0002, "Modify ally priorities"],
@@ -129,10 +125,6 @@ export function tilesetName(code: number | string | undefined): string {
   if (code === undefined || code === null) return "—";
   const letter = typeof code === "number" ? String.fromCharCode(code) : String(code);
   return TILESETS[letter] ? `${TILESETS[letter]} (${letter})` : letter;
-}
-
-export function playerTypeName(t: number): string {
-  return PLAYER_TYPES[t] ?? `Type ${t}`;
 }
 
 export function raceName(r: number): string {
@@ -189,17 +181,6 @@ export function formatBuild(build: number[] | null | undefined): string {
 export function stripColorCodes(s: string | null | undefined): string {
   if (!s) return "";
   return s.replace(/\|c[0-9a-fA-F]{8}/g, "").replace(/\|r/gi, "").replace(/\|n/gi, "\n");
-}
-
-export function playersFromMask(mask: number, players: Array<{ id: number; name: string }>): string {
-  const names: string[] = [];
-  for (let i = 0; i < 28; i++) {
-    if (mask & (1 << i)) {
-      const p = players.find((x) => x.id === i);
-      names.push(p ? stripColorCodes(p.name) || `P${i}` : `P${i}`);
-    }
-  }
-  return names.join(", ") || "—";
 }
 
 export function extensionOf(path: string): string {

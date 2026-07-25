@@ -110,6 +110,8 @@ console.log(version(), meta?.map_info?.name, meta?.strings?.length);
 
 ### Web playground
 
+Live: **https://wesleyel.github.io/war3parser/**
+
 Local demo (builds WASM first):
 
 ```bash
@@ -119,12 +121,14 @@ just serve-playground
 
 Drop any `.w3x` / `.w3m`. Parsing is 100% in-browser; nothing is uploaded.
 
-Static build:
+Static / GitHub Pages build:
 
 ```bash
-just build-playground
-# output: playground/dist-site/
+just build-playground   # relative base, output: playground/dist-site/
+just build-pages        # base=/war3parser/ for GitHub Pages
 ```
+
+The playground is Vite + React with a Real World Materials UI. CI deploys it to GitHub Pages on pushes to `main` (see `.github/workflows/pages.yml`). Enable **Settings → Pages → Source: GitHub Actions** once.
 
 ## w3i version support
 

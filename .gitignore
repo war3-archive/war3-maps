@@ -10,3 +10,4 @@ out/
 playground/dist-site/
 playground/node_modules/
 tmp_conclusion.md
+*.tsbuildinfo
