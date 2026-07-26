@@ -114,6 +114,12 @@ jobs:
     name: Publish to npm
     needs: test
     runs-on: ubuntu-latest
+    # npm Trusted Publishing (OIDC): no NPM_TOKEN secret; trust is configured
+    # on npmjs.com (package settings → Trusted Publisher → GitHub Actions,
+    # repository wesleyel/war3parser, workflow release.yml).
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -125,6 +131,14 @@ jobs:
         with:
           version: latest
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+
       - name: Build WASM package
         run: |
           rm -rf dist && mkdir -p dist
@@ -132,8 +146,6 @@ jobs:
           cp crates/wasm/war3parser.d.ts dist/war3parser.d.ts
           node -e "const fs=require('fs');const p='dist/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.name='@wesleyel/war3parser';j.types='war3parser.d.ts';fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')"
 
-      - uses: JS-DevTools/npm-publish@v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          package: dist
-          access: public
+      - name: Publish via OIDC trusted publishing
+        working-directory: dist
+        run: npm publish --access public
