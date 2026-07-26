@@ -1,67 +1,54 @@
+name: Release
+
 on:
   push:
     tags:
-      - "v*" # Run when tag matches v*, i.e. v1.0, v20.15.10
-
-name: Release
+      - "v*" # v0.4.0, v1.0, …
 
 env:
-  RELEASE_BIN: war3parser-cli
-  RELEASE_DIR: artifacts
-  GITHUB_REF: "${{ github.ref }}"
-  WINDOWS_TARGET: x86_64-pc-windows-msvc
-  MACOS_TARGET: aarch64-apple-darwin
-  LINUX_AMD64_TARGET: x86_64-unknown-linux-musl
-  LINUX_ARM64_TARGET: aarch64-unknown-linux-musl
-
-  # Space separated paths to include in the archive.
-  RELEASE_ADDS: README.md LICENSE
-  CLI_PATH: crates/cli
-  LIB_PATH: crates/core
-  WASM_PATH: crates/wasm
+  BIN: war3parser-cli
 
 jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
   build-cli:
-    name: Build war3parser CLI artifact
+    name: Build CLI (${{ matrix.target }})
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            rust: stable
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            rust: stable
           - target: aarch64-apple-darwin
             os: macos-latest
-            rust: stable
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            rust: stable
-
+            rustflags: "-Ctarget-feature=+crt-static"
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags || '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Query version number
-        id: get_version
-        shell: bash
-        run: |
-          echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
 
-      - name: Install C compilation tooling (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Query version number
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Install C cross tooling (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y
-          sudo apt-get install clang gcc-aarch64-linux-gnu musl-tools -y
-
-      - name: Install p7zip (MacOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install p7zip
-
-      - name: Add rustup target
-        run: rustup target add ${{ matrix.target }}
+          sudo apt-get install -y clang gcc-aarch64-linux-gnu musl-tools
 
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
@@ -69,151 +56,82 @@ jobs:
           command: build
           target: ${{ matrix.target }}
           args: "--locked --release"
-          working-directory: ${{ env.CLI_PATH }}
+          working-directory: crates/cli
 
-      - name: Set RUSTFLAGS (Windows)
-        if: matrix.os == 'windows-latest'
-        run: echo "RUSTFLAGS=-Ctarget-feature=+crt-static" >> $GITHUB_ENV
-
-      - name: Create artifact directory
-        run: |
-          mkdir ${{ env.RELEASE_DIR }}
-          mkdir -p ${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}
-
-      - name: Move binaries (Linux/MacOS)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-        run: |
-          mv ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }} ${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}/${{ env.RELEASE_BIN }}
-          mv ${{ env.RELEASE_ADDS }} ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}
-
-      - name: Move binaries (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Package tarball
         shell: bash
         run: |
-          cp ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }}.exe ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}/${{ env.RELEASE_BIN }}.exe
-          mv ${{ env.RELEASE_ADDS }} ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}
+          version="${{ steps.version.outputs.version }}"
+          pkg="${BIN}-${version}-${{ matrix.target }}"
+          mkdir -p "artifacts/$pkg"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp "target/${{ matrix.target }}/release/${BIN}.exe" "artifacts/$pkg/"
+          else
+            cp "target/${{ matrix.target }}/release/${BIN}" "artifacts/$pkg/"
+          fi
+          cp README.md LICENSE "artifacts/$pkg/"
+          tar -czf "artifacts/$pkg.tar.gz" -C artifacts "$pkg"
+          rm -r "artifacts/$pkg"
 
-      - name: Create tarball
-        shell: bash
-        run: 7z a -ttar -so -an ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }} | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}.tar.gz
-
-      - name: Upload Zip
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: ./${{ env.RELEASE_DIR }}
+          path: artifacts/*.tar.gz
 
   release-cli:
-    name: GitHub war3parser CLI Release
+    name: GitHub release
     needs: build-cli
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Query version number
-        id: get_version
-        shell: bash
-        run: |
-          echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all tarballs
+        uses: actions/download-artifact@v4
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          release_name: ${{ steps.get_version.outputs.VERSION }}
+          path: artifacts
+          merge-multiple: true
 
-      - name: Download Linux amd64 tarball
-        uses: actions/download-artifact@v4.1.7
+      - name: Create release with assets
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ env.LINUX_AMD64_TARGET }}
-
-      - name: Download Linux arm64 tarball
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: ${{ env.LINUX_ARM64_TARGET }}
-
-      - name: Download Windows tarball
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: ${{ env.WINDOWS_TARGET }}
-
-      - name: Download MacOS tarball
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: ${{ env.MACOS_TARGET }}
-
-      - name: Release Linux amd64 tarball
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_AMD64_TARGET }}.tar.gz
-          asset_content_type: application/gzip
-          asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_AMD64_TARGET }}.tar.gz
-
-      - name: Release Linux arm64 tarball
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_ARM64_TARGET }}.tar.gz
-          asset_content_type: application/gzip
-          asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_ARM64_TARGET }}.tar.gz
-
-      - name: Release Windows tarball
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
-          asset_content_type: application/gzip
-          asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
-
-      - name: Release MacOS tarball
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_TARGET }}.tar.gz
-          asset_content_type: application/gzip
-          asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_TARGET }}.tar.gz
+          files: artifacts/*.tar.gz
+          generate_release_notes: true
 
   release-crates:
-    name: GitHub war3parser crates Release
-    needs: build-cli
+    name: Publish to crates.io
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - uses: katyo/publish-crates@v2
         with:
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           ignore-unpublished-changes: true
 
   release-npm:
-    name: GitHub war3parser npm Release
-    needs: build-cli
+    name: Publish to npm
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Build wasm
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - name: Build WASM package
         run: |
-          cd ${{ env.WASM_PATH }}
-          wasm-pack build --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
-          cp war3parser.d.ts ../../dist/war3parser.d.ts
-          # package name @wesleyel/war3parser (crate is war3parser-wasm)
-          sed -i 's/"name": "@wesleyel\/war3parser-wasm"/"name": "@wesleyel\/war3parser"/' ../../dist/package.json
+          rm -rf dist && mkdir -p dist
+          wasm-pack build crates/wasm --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
+          cp crates/wasm/war3parser.d.ts dist/war3parser.d.ts
+          node -e "const fs=require('fs');const p='dist/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.name='@wesleyel/war3parser';j.types='war3parser.d.ts';fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')"
+
       - uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}

@@ -183,6 +183,96 @@ export function stripColorCodes(s: string | null | undefined): string {
   return s.replace(/\|c[0-9a-fA-F]{8}/g, "").replace(/\|r/gi, "").replace(/\|n/gi, "\n");
 }
 
+/** Era label for a w3i format version (full ladder v8-v33). */
+export function w3iEraName(v: number | null | undefined): string {
+  if (v == null) return "";
+  if (v < 18) return "RoC beta";
+  if (v < 23) return "Reign of Chaos";
+  if (v < 28) return "The Frozen Throne";
+  if (v < 31) return "1.31";
+  if (v < 32) return "Reforged";
+  return "WC3 2.0";
+}
+
+/** Render a rawcode byte array (e.g. upgrade/tech id) as its 4CC string. */
+export function fourCC(bytes: number[] | null | undefined): string {
+  if (!bytes || bytes.length !== 4) return "????";
+  return bytes
+    .map((b) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : "�"))
+    .join("");
+}
+
+const WEATHER_NAMES: Record<string, string> = {
+  RAhr: "Rain (heavy)",
+  RAlr: "Rain (light)",
+  MEds: "Dungeon mist",
+  FDbh: "Black fog (heavy)",
+  FDbl: "Black fog (light)",
+  FDgh: "Green fog (heavy)",
+  FDgl: "Green fog (light)",
+  FDrh: "Red fog (heavy)",
+  FDrl: "Red fog (light)",
+  FDwh: "White fog (heavy)",
+  FDwl: "White fog (light)",
+  SNbs: "Blizzard",
+  SNhs: "Snow (heavy)",
+  SNls: "Snow (light)",
+  WOcw: "Wind (heavy)",
+  WOlw: "Wind (light)",
+  LRaa: "Ashenvale rain",
+  LRma: "Moonlight ambience",
+};
+
+/** Global weather rawcode (i32, little-endian) → readable name. */
+export function weatherName(code: number | null | undefined): string {
+  if (code == null) return "—";
+  if (code === 0) return "None";
+  const cc = fourCC([code & 0xff, (code >> 8) & 0xff, (code >> 16) & 0xff, (code >> 24) & 0xff]);
+  return WEATHER_NAMES[cc] ? `${WEATHER_NAMES[cc]} (${cc})` : cc;
+}
+
+export function gameDataSetName(v: number | null | undefined): string {
+  if (v === 0) return "Default";
+  if (v === 1) return "Custom";
+  if (v === 2) return "Melee";
+  if (v == null) return "—";
+  return `Set ${v}`;
+}
+
+/** File-order BGRA byte array → CSS color. */
+export function bgraToCss(bytes: number[] | null | undefined): string | null {
+  if (!bytes || bytes.length !== 4) return null;
+  const [b, g, r, a] = bytes;
+  return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(2)})`;
+}
+
+/** Import flag byte → standard (implicit war3mapimported\) vs custom path. */
+export function importFlagLabel(flag: number): string {
+  if (flag === 0 || flag === 1 || flag === 8) return `standard (${flag})`;
+  if (flag === 10 || flag === 13) return `custom (${flag})`;
+  return `flag ${flag}`;
+}
+
+export function availabilityName(v: number): string {
+  if (v === 0) return "Unavailable";
+  if (v === 1) return "Available";
+  if (v === 2) return "Researched";
+  return `Mode ${v}`;
+}
+
+/** Bitmask of player slots → compact list like "P0, P1, P4" (or "all"). */
+export function playerMaskLabel(mask: number): string {
+  const m = mask >>> 0;
+  if (m === 0xffffffff) return "All players";
+  const slots: number[] = [];
+  for (let i = 0; i < 32; i++) {
+    if ((m >>> i) & 1) slots.push(i);
+  }
+  if (!slots.length) return "None";
+  if (slots.length > 8) return `${slots.length} players`;
+  return slots.map((i) => `P${i}`).join(", ");
+}
+
 export function extensionOf(path: string): string {
   const base = path.split(/[/\\]/).pop() ?? path;
   const dot = base.lastIndexOf(".");

@@ -1,12 +1,16 @@
 import {
+  bgraToCss,
   decodeFlags,
   formatBuild,
   formatBytes,
+  gameDataSetName,
   gameDataVersionName,
   graphicsModeName,
   scriptModeName,
   stripColorCodes,
   tilesetName,
+  w3iEraName,
+  weatherName,
 } from "../../lib/format";
 import { buildOverlayIcons, countByType, isMinimapImage } from "../../lib/minimap";
 import type { MapMetadata } from "../../lib/wasm";
@@ -35,7 +39,10 @@ export function OverviewPanel({
         <div>
           <h2 className="hero-name">{name}</h2>
           <div className="chip-row">
-            <Chip tone="brass">w3i v{info?.version ?? "?"}</Chip>
+            <Chip tone="brass">
+              w3i v{info?.version ?? "?"}
+              {info ? ` · ${w3iEraName(info.version)}` : ""}
+            </Chip>
             <Chip>{formatBytes(file.size)}</Chip>
             <Chip>{Math.round(data.parse_ms ?? 0)} ms</Chip>
             <Chip tone={data.header.has_hm3w ? "ok" : "warn"}>
@@ -88,10 +95,18 @@ export function OverviewPanel({
               ],
               ["Saves", String(info?.saves ?? "—")],
               ["Editor ver", String(info?.editor_version ?? "—")],
-              ["Build", formatBuild(info?.build_version as number[] | undefined)],
+              ["Build", formatBuild(info?.build_version)],
               ["Script", scriptModeName(info?.script_mode)],
               ["Graphics", graphicsModeName(info?.graphics_mode)],
               ["Game data", gameDataVersionName(info?.game_data_version)],
+              ...(info?.default_camera_zoom != null
+                ? ([
+                    [
+                      "Camera zoom",
+                      `${info.min_camera_zoom ?? "—"} / ${info.default_camera_zoom} / ${info.max_camera_zoom ?? "—"} (min/default/max)`,
+                    ],
+                  ] as Array<[string, string]>)
+                : []),
             ]}
           />
         </Card>
@@ -134,6 +149,52 @@ export function OverviewPanel({
         )}
       </Card>
 
+      {info?.fog_style != null ? (
+        <Card title="Environment">
+          <div className="grid-2">
+            <KvList
+              rows={[
+                ["Fog style", String(info.fog_style)],
+                ["Fog density", info.fog_density != null ? info.fog_density.toFixed(3) : "—"],
+                [
+                  "Fog height",
+                  info.fog_height ? `${info.fog_height[0]} → ${info.fog_height[1]}` : "—",
+                ],
+                ["Weather", weatherName(info.global_weather)],
+              ]}
+            />
+            <KvList
+              rows={[
+                ["Sound env", info.sound_environment || "—"],
+                [
+                  "Light env",
+                  info.light_environment_tileset
+                    ? tilesetName(info.light_environment_tileset)
+                    : "—",
+                ],
+              ]}
+            />
+          </div>
+          <div className="chip-row" style={{ marginTop: "0.5rem" }}>
+            {bgraToCss(info.fog_color) ? (
+              <span className="legend-item">
+                <span className="legend-swatch" style={{ background: bgraToCss(info.fog_color)! }} />
+                Fog {bgraToCss(info.fog_color)}
+              </span>
+            ) : null}
+            {bgraToCss(info.water_vertex_color) ? (
+              <span className="legend-item">
+                <span
+                  className="legend-swatch"
+                  style={{ background: bgraToCss(info.water_vertex_color)! }}
+                />
+                Water {bgraToCss(info.water_vertex_color)}
+              </span>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
       {info && (info.loading_screen_title || info.prologue_screen_title) ? (
         <div className="grid-2">
           <Card title="Loading screen">
@@ -143,6 +204,11 @@ export function OverviewPanel({
                 ["Subtitle", stripColorCodes(info.loading_screen_subtitle) || "—"],
                 ["Text", stripColorCodes(info.loading_screen_text) || "—"],
                 ["Model", info.loading_screen_model || "—"],
+                [
+                  "Background",
+                  String(info.loading_screen_background ?? info.campaign_background ?? "—"),
+                ],
+                ["Game data set", gameDataSetName(info.game_data_set)],
               ]}
             />
           </Card>

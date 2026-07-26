@@ -1,6 +1,7 @@
 export type TabId =
   | "overview"
   | "players"
+  | "tech"
   | "images"
   | "strings"
   | "imports"

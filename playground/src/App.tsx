@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DropZone } from "./components/DropZone";
 import { OverviewPanel } from "./components/panels/OverviewPanel";
 import { TeamsPanel } from "./components/panels/TeamsPanel";
+import { TechPanel, techEntryCount } from "./components/panels/TechPanel";
 import { ImagesPanel } from "./components/panels/ImagesPanel";
 import { StringsPanel } from "./components/panels/StringsPanel";
 import { ImportsPanel } from "./components/panels/ImportsPanel";
 import { FilesPanel } from "./components/panels/FilesPanel";
 import { JsonPanel } from "./components/panels/JsonPanel";
 import { TabNav, type TabDef, type TabId } from "./components/TabNav";
-import { formatBytes } from "./lib/format";
+import { formatBytes, w3iEraName } from "./lib/format";
 import { ensureWasm, parseMap, type MapMetadata } from "./lib/wasm";
 
 type StatusKind = "" | "ok" | "err" | "busy";
@@ -79,7 +80,7 @@ export default function App() {
         setStatus(
           `OK · ${file.name} · ${formatBytes(file.size)} · ${Math.round(data.parse_ms ?? 0)} ms · w3i v${
             info?.version ?? "?"
-          } · ${info?.players?.length ?? 0} players`,
+          }${info ? ` (${w3iEraName(info.version)})` : ""} · ${info?.players?.length ?? 0} players`,
         );
         setStatusKind("ok");
       } catch (e) {
@@ -101,6 +102,7 @@ export default function App() {
         label: "Teams",
         count: data.map_info?.forces?.length || data.map_info?.players?.length,
       },
+      { id: "tech", label: "Tech", count: techEntryCount(data) || undefined },
       { id: "images", label: "Images", count: data.images?.length },
       { id: "strings", label: "Strings", count: data.strings?.length },
       { id: "imports", label: "Imports", count: data.imports?.length },
@@ -150,6 +152,7 @@ export default function App() {
               <OverviewPanel data={current.data} file={current.file} />
             )}
             {activeTab === "players" && <TeamsPanel data={current.data} />}
+            {activeTab === "tech" && <TechPanel data={current.data} />}
             {activeTab === "images" && <ImagesPanel data={current.data} />}
             {activeTab === "strings" && <StringsPanel data={current.data} />}
             {activeTab === "imports" && <ImportsPanel data={current.data} />}
@@ -160,7 +163,7 @@ export default function App() {
       ) : null}
 
       <footer className="footer">
-        Supports ROC → Reforged / WC3 2.0 (w3i v18–33) · HM3W + pure MPQ · WTS / IMP / images
+        Supports RoC beta → WC3 2.0 (w3i v8–33) · HM3W + pure MPQ · WTS / IMP / MMP / images
         <br />
         <span className="faint">
           Real World Materials UI · nothing leaves your browser ·{" "}
