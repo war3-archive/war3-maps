@@ -12,15 +12,16 @@ license.workspace = true
 readme = "../../README.md"
 
 [dependencies]
-binary-reader = "0.4.5"
+base64 = "0.22.1"
 image = { workspace = true }
 image-blp = { workspace = true }
 mpq = "0.8.0"
-regex = "1.10.5"
 thiserror = { workspace = true }
-base64 = "0.22.1"
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [features]
 default = ["serde"]

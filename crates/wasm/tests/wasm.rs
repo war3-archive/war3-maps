@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use war3parser::prelude::{War3MapMetadata, War3MapW3x};
+use war3parser::prelude::{FormatVersion, War3MapMetadata, War3MapW3x};
 use wasm_bindgen_test::*;
 
 fn load_map() -> &'static [u8] {
@@ -32,6 +32,6 @@ fn test_dota_mapinfo() {
     let map = load_dota();
     let snapshot = War3MapMetadata::parse_snapshot(map).expect("dota metadata");
     let info = snapshot.map_info.expect("dota w3i");
-    assert_eq!(info.version, 25);
+    assert_eq!(info.version, FormatVersion::V25);
     assert!(info.skipped_optional_sections);
 }

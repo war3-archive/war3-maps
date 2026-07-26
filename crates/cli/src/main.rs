@@ -66,13 +66,6 @@ enum Command {
     },
 }
 
-fn extract_file_buffer(w3x: &mut War3MapW3x, file_name: &str) -> anyhow::Result<Vec<u8>> {
-    let out_file_file = w3x.get(file_name)?;
-    let mut out_file_content = vec![0u8; out_file_file.size() as usize];
-    out_file_file.read(&mut w3x.archive, &mut out_file_content)?;
-    Ok(out_file_content)
-}
-
 fn save_file(file_name: &str, out_dir: &Path, file_content: &[u8]) -> anyhow::Result<()> {
     let out_file_path = out_dir.join(file_name.replace('\\', "/"));
     if let Some(parent) = out_file_path.parent() {
@@ -93,15 +86,15 @@ fn main() -> anyhow::Result<()> {
             let map_path = Path::new(&map_path);
             let out_dir = Path::new(&out_dir);
 
-            let mut w3x = War3MapW3x::new(map_path.to_path_buf())?;
-            let file_content = extract_file_buffer(&mut w3x, &file_name)?;
+            let mut w3x = War3MapW3x::open(map_path)?;
+            let file_content = w3x.read_file(&file_name)?;
             save_file(&file_name, out_dir, &file_content)?;
             println!("✅ Extracted file: {file_name}");
             Ok(())
         }
         Command::ListFiles { map_path } => {
             let map_path = Path::new(&map_path);
-            let w3x = War3MapW3x::new(map_path.to_path_buf())?;
+            let w3x = War3MapW3x::open(map_path)?;
             let files = w3x
                 .files
                 .ok_or_else(|| anyhow::anyhow!("Failed to get files from MPQ"))?;
@@ -116,7 +109,7 @@ fn main() -> anyhow::Result<()> {
             let map_path = Path::new(&map_path);
             let out_dir = Path::new(&out_dir);
 
-            let mut w3x = War3MapW3x::new(map_path.to_path_buf())?;
+            let mut w3x = War3MapW3x::open(map_path)?;
             let files = w3x.files.clone().unwrap_or_default();
 
             fn handle_image(
@@ -125,7 +118,7 @@ fn main() -> anyhow::Result<()> {
                 out_dir: &Path,
                 keep_ori: bool,
             ) -> anyhow::Result<()> {
-                let file_content = extract_file_buffer(w3x, file)?;
+                let file_content = w3x.read_file(file)?;
                 if keep_ori {
                     save_file(file, out_dir, &file_content)?;
                 } else {
@@ -180,15 +173,9 @@ fn main() -> anyhow::Result<()> {
                 std::fs::create_dir_all(out_dir)?;
             }
             let buffer = std::fs::read(map_path)?;
-            let mut metadata = War3MapMetadata::from(&buffer).ok_or_else(|| {
-                anyhow::anyhow!("Failed to parse metadata from '{}'", map_path.display())
-            })?;
-            metadata.update_string_table().ok();
-            metadata.save(
-                out_dir
-                    .to_str()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to get output directory"))?,
-            )?;
+            let mut metadata = War3MapMetadata::parse(&buffer)?;
+            metadata.resolve_trigger_strings();
+            metadata.save(out_dir)?;
             println!(
                 "✅ Dumped '{}' metadata to '{}'",
                 map_path.display(),

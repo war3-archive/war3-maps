@@ -34,7 +34,7 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, String> {
 #[wasm_bindgen]
 pub fn parse_map(buffer: js_sys::Uint8Array) -> JsValue {
     let started = js_sys::Date::now();
-    let Some(mut snapshot) = War3MapMetadata::parse_snapshot(&buffer.to_vec()) else {
+    let Ok(mut snapshot) = War3MapMetadata::parse_snapshot(&buffer.to_vec()) else {
         return JsValue::UNDEFINED;
     };
     snapshot.parse_ms = Some(js_sys::Date::now() - started);

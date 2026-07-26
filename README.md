@@ -6,7 +6,7 @@
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/wesleyel/war3parser/build.yml)](https://github.com/wesleyel/war3parser/actions/workflows/build.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/wesleyel/war3parser)](https://github.com/wesleyel/war3parser/releases)
 
-`war3parser` is a library for parsing and extracting Warcraft III map files. It extracts data from MPQ archives and parses common map formats across classic and Reforged versions.
+`war3parser` is a library for parsing and extracting Warcraft III map files. It extracts data from MPQ archives and parses common map formats across classic and Reforged versions — the `w3i` parser covers the full format ladder **v8 → v33** (RoC betas through WC3 2.0).
 
 ## Workspace layout
 
@@ -23,12 +23,23 @@ crates/
 | `war3parser-cli` | core + `serde` | never pulls wasm-bindgen |
 | `war3parser-wasm` | core + `serde-wasm-bindgen` | thin `parse_map` / `version`; hand-maintained `war3parser.d.ts` |
 
+Core module layout:
+
+```text
+crates/core/src/
+  archive.rs   # War3MapW3x — HM3W header + embedded MPQ access
+  formats/     # per-file parsers: w3i (v8→v33), wts, imp, mmp
+  model/       # portable API types: MapSnapshot, War3MapMetadata, images
+  reader.rs    # bounds-checked little-endian ByteReader
+  error.rs     # crate-wide Error
+```
+
 Shared API types (`MapSnapshot`, `War3ImageData`, `ImportEntry`, `StringTableEntry`, `War3MapHeader`, …) live in `war3parser::model` so CLI and WASM do not redefine DTOs.
 
 ## Features
 
 - Extract files from MPQ archives (by known name)
-- Parse **w3i** map info across versions **18 → 33** (ROC, TFT, 1.31+, Reforged, WC3 2.0)
+- Parse **w3i** map info across versions **8 → 33** (RoC betas, ROC, TFT, 1.31+, Reforged, WC3 2.0)
 - Parse **wts** string tables (comment lines, `\n` / `\r\n`, BOM)
 - Parse **imp** imports, minimap/preview **BLP/TGA** images
 - Handle protected / headerless maps (no `HM3W`, truncated optional w3i sections, missing listfile)
@@ -46,8 +57,8 @@ cargo add war3parser
 use war3parser::prelude::War3MapMetadata;
 
 let buffer = std::fs::read("path/to/map.w3x").unwrap();
-let mut metadata = War3MapMetadata::from(&buffer).unwrap();
-metadata.update_string_table().ok();
+let mut metadata = War3MapMetadata::parse(&buffer).unwrap();
+metadata.resolve_trigger_strings();
 
 // Portable snapshot shared with the WASM API
 let snapshot = metadata.snapshot().unwrap();
@@ -132,14 +143,21 @@ The playground is Vite + React with a Real World Materials UI. CI deploys it to 
 
 ## w3i version support
 
+The version ladder follows [War3Net](https://github.com/Drake53/War3Net), the most
+complete open reference:
+
 | Version | Era | Notes |
 |--------:|-----|-------|
-| 18 | ROC | Base layout |
-| 25 | TFT | Loading models, fog, random item tables |
-| 28 | 1.31 | Build version + script language |
+| 8–15 | RoC beta | Legacy layouts (no save count pre-18, no subtitles pre-15) |
+| 18 | ROC | Campaign background, loading screen index |
+| 23–24 | early TFT | Fog, sound environment, game data set; random item tables (24) |
+| 25 | TFT | Global weather |
+| 26–27 | TFT patches | Trailing marker int (26–27), game build version (27) |
+| 28 | 1.31 | Script language (JASS/Lua) |
 | 31 | Reforged | Graphics modes, game data version, enemy priorities |
-| 32–33 | WC3 2.0 | Camera zoom defaults |
-| * | protected | `0xFF` optional-section skip after forces |
+| 32–33 | WC3 2.0 | Camera zoom limits (32: default+max, 33: +min) |
+| * | unknown | Future/gap versions parse with the nearest known layout |
+| * | protected | `0xFF` optional-section skip after forces; tolerant truncation |
 
 ## Contributing
 

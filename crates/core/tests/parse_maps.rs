@@ -1,10 +1,23 @@
+use war3parser::formats::w3i::FormatVersion;
 use war3parser::prelude::*;
 
-const MAPS: &[(&str, u32, bool)] = &[
+const MAPS: &[(&str, FormatVersion, bool)] = &[
     // (path relative to crate, expected w3i version, expect_hm3w)
-    ("../../test_data/DotA v6.83dAI PMV 1.42 EN.w3x", 25, true),
-    ("../../test_data/Legion_TD_11.1c_TeamOZE.w3x", 31, true),
-    ("../../test_data/TowerSurvivorsv1.71.w3x", 31, false),
+    (
+        "../../test_data/DotA v6.83dAI PMV 1.42 EN.w3x",
+        FormatVersion::V25,
+        true,
+    ),
+    (
+        "../../test_data/Legion_TD_11.1c_TeamOZE.w3x",
+        FormatVersion::V31,
+        true,
+    ),
+    (
+        "../../test_data/TowerSurvivorsv1.71.w3x",
+        FormatVersion::V31,
+        false,
+    ),
 ];
 
 #[test]
@@ -25,7 +38,7 @@ fn all_fixtures_parse_w3i() {
         assert!(!info.players.is_empty(), "{path} has players");
         assert!(!info.forces.is_empty(), "{path} has forces");
         println!(
-            "OK {path}: v{} name={:?} players={} forces={} skipped={}",
+            "OK {path}: {} name={:?} players={} forces={} skipped={}",
             info.version,
             info.name,
             info.players.len(),
@@ -36,14 +49,19 @@ fn all_fixtures_parse_w3i() {
 }
 
 #[test]
-fn metadata_roundtrip_string_table() {
+fn metadata_resolves_trigger_strings() {
     for (path, _, _) in MAPS {
         let buffer = std::fs::read(path).unwrap();
-        let mut meta = War3MapMetadata::from(&buffer).expect("metadata");
+        let mut meta = War3MapMetadata::parse(&buffer).expect("metadata");
         assert!(meta.map_info.is_some(), "{path} map_info");
-        // WTS may or may not resolve TRIGSTR; just ensure call is safe
-        let _ = meta.update_string_table();
         assert!(meta.wts.is_some(), "{path} should have wts");
+        meta.resolve_trigger_strings();
+        let info = meta.map_info.as_ref().unwrap();
+        assert!(
+            !info.name.starts_with("TRIGSTR_"),
+            "{path} name still unresolved: {:?}",
+            info.name
+        );
     }
 }
 
@@ -64,7 +82,6 @@ fn legion_wts_has_many_strings() {
     let buffer = std::fs::read(path).unwrap();
     let mut w3x = War3MapW3x::from_buffer(&buffer).unwrap();
     let wts = w3x.read_string_table().unwrap();
-    // Old regex only matched ~88; brace parser should get thousands
     assert!(
         wts.string_map.len() > 500,
         "expected rich WTS, got {}",
@@ -91,15 +108,31 @@ fn tower_minimap_icons() {
     assert!(mmp.icons.iter().all(|i| i.icon_type == 2));
     // first tower player should be roughly red-ish after BGRA→RGBA
     let c = mmp.icons[0].color;
-    assert!(c[0] > 200, "expected red channel high, got {:?}", c);
+    assert!(c[0] > 200, "expected red channel high, got {c:?}");
 }
 
 #[test]
 fn dota_minimap_has_buildings_and_starts() {
     let path = "../../test_data/DotA v6.83dAI PMV 1.42 EN.w3x";
     let buffer = std::fs::read(path).unwrap();
-    let meta = War3MapMetadata::from(&buffer).unwrap();
+    let meta = War3MapMetadata::parse(&buffer).unwrap();
     let mmp = meta.minimap_icons.expect("mmp");
     assert!(mmp.icons.iter().any(|i| i.icon_type == 1));
     assert!(mmp.icons.iter().any(|i| i.icon_type == 2));
+}
+
+#[test]
+fn snapshot_shape_is_stable() {
+    let path = "../../test_data/TowerSurvivorsv1.71.w3x";
+    let buffer = std::fs::read(path).unwrap();
+    let snapshot = War3MapMetadata::parse_snapshot(&buffer).unwrap();
+    assert!(snapshot.map_info.is_some());
+    assert!(!snapshot.images.is_empty());
+    assert!(snapshot.imports.as_ref().is_some_and(|i| !i.is_empty()));
+    assert!(snapshot.strings.as_ref().is_some_and(|s| !s.is_empty()));
+    assert!(snapshot.files.as_ref().is_some_and(|f| !f.is_empty()));
+
+    // w3i version must serialize as a plain number (WASM d.ts contract)
+    let json = serde_json::to_value(&snapshot).unwrap();
+    assert!(json["map_info"]["version"].is_number());
 }

@@ -70,51 +70,103 @@ export interface RandomItemTable {
   sets: RandomItemSet[];
 }
 
-/** Parsed `war3map.w3i` (TRIGSTR-resolved when a string table was applied). */
+/** Unknown legacy fields only present in w3i format v8 (RoC beta). */
+export interface LegacyV8Fields {
+  unk1: number;
+  unk2: number;
+  unk3: number;
+  unk4: number;
+  unk5: number;
+  unk6: number;
+  unk7: number;
+}
+
+/**
+ * Parsed `war3map.w3i` (TRIGSTR-resolved when a string table was applied).
+ *
+ * Supports format versions v8 - v33; fields marked with a version range are
+ * `null` outside it.
+ */
 export interface War3MapW3i {
   version: number;
-  saves: number;
-  editor_version: number;
+  /** v18+ */
+  saves: number | null;
+  /** v18+ */
+  editor_version: number | null;
+  /** `[major, minor, patch, build]`, v27+ */
   build_version: number[] | null;
   name: string;
   author: string;
   description: string;
   recommended_players: string;
+  /** v8 only */
+  legacy_v8: LegacyV8Fields | null;
   camera_bounds: number[];
-  camera_bounds_complements: number[];
+  /** v15+ */
+  camera_bounds_complements: number[] | null;
   playable_size: number[];
   flags: number;
   tileset: number;
-  campaign_background: number;
+  /** v23+ (was `campaign_background` before v23) */
+  loading_screen_background: number | null;
+  /** v18-v22 only */
+  campaign_background: number | null;
+  /** v15-v17, v23+ */
   loading_screen_model: string | null;
-  loading_screen_text: string;
-  loading_screen_title: string;
-  loading_screen_subtitle: string;
-  loading_screen: number;
+  /** v10+ */
+  loading_screen_text: string | null;
+  /** v10+ */
+  loading_screen_title: string | null;
+  /** v15+ */
+  loading_screen_subtitle: string | null;
+  /** 0 = default, 1 = custom, 2 = melee; v23+ */
+  game_data_set: number | null;
+  /** v18-v22 only */
+  loading_screen_index: number | null;
+  /** v15-v17, v23+ */
   prologue_screen_model: string | null;
-  prologue_screen_text: string;
-  prologue_screen_title: string;
-  prologue_screen_subtitle: string;
-  use_terrain_fog: number | null;
+  /** v11+ */
+  prologue_screen_text: string | null;
+  /** v11+ */
+  prologue_screen_title: string | null;
+  /** v15+ */
+  prologue_screen_subtitle: string | null;
+  /** v23+ */
+  fog_style: number | null;
+  /** `[startZ, endZ]`, v23+ */
   fog_height: number[] | null;
+  /** v23+ */
   fog_density: number | null;
+  /** BGRA, v23+ */
   fog_color: number[] | null;
+  /** v25+ */
   global_weather: number | null;
+  /** v23+ */
   sound_environment: string | null;
+  /** v23+ */
   light_environment_tileset: number | null;
+  /** BGRA, v23+ */
   water_vertex_color: number[] | null;
+  /** 0 = JASS, 1 = Lua; v28+ */
   script_mode: number | null;
+  /** 1 = SD, 2 = HD, 3 = both; v31+ */
   graphics_mode: number | null;
+  /** 0 = ROC, 1 = TFT; v31+ */
   game_data_version: number | null;
+  /** v32+ */
   default_camera_zoom: number | null;
+  /** v32+ */
   max_camera_zoom: number | null;
+  /** v33+ */
   min_camera_zoom: number | null;
   skipped_optional_sections: boolean;
   players: Player[];
   forces: Force[];
   upgrade_availability_changes: UpgradeAvailabilityChange[];
   tech_availability_changes: TechAvailabilityChange[];
+  /** v15+ */
   random_unit_tables: RandomUnitTable[];
+  /** v24+ */
   random_item_tables: RandomItemTable[];
 }
 

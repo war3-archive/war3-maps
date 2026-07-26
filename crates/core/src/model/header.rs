@@ -1,15 +1,14 @@
-//! HM3W container header (absent on pure-MPQ / some protected maps).
+//! `HM3W` container header (absent on bare-MPQ / protected maps).
 
-use crate::api_type;
-
-api_type! {
-    /// Fields from the optional `HM3W` prefix before the embedded MPQ.
-    #[derive(Default)]
-    pub struct War3MapHeader {
-        pub has_hm3w: bool,
-        pub name: Option<String>,
-        pub flags: Option<u32>,
-        pub max_players: Option<u32>,
-        pub u1: Option<u32>,
-    }
+/// Fields of the optional `HM3W` prefix that precedes the embedded MPQ.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Default)]
+pub struct War3MapHeader {
+    /// Whether the `HM3W` magic was present.
+    pub has_hm3w: bool,
+    pub name: Option<String>,
+    pub flags: Option<u32>,
+    pub max_players: Option<u32>,
+    /// Unknown field between the magic and the name.
+    pub u1: Option<u32>,
 }
