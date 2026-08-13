@@ -1,0 +1,15 @@
+---
+// Cloudflare Web Analytics. Cookieless and no client-side state, so it does not
+// change what the home page claims about searches staying in the browser — the
+// beacon reports page views, never the query.
+//
+// `is:inline` keeps Astro from trying to bundle a third-party URL.
+const CF_BEACON_TOKEN = "e446931c086e4b7cadf44b0e9adaa981";
+---
+
+<script
+  is:inline
+  type="module"
+  src="https://static.cloudflareinsights.com/beacon.min.js"
+  data-cf-beacon={`{"token": "${CF_BEACON_TOKEN}"}`}
+></script>

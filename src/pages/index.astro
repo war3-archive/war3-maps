@@ -1,4 +1,6 @@
 ---
+import Analytics from "../components/Analytics.astro";
+import SiteNav from "../components/SiteNav.astro";
 import buildInfo from "../data/build-info.json";
 import "../styles/global.css";
 
@@ -32,15 +34,7 @@ function formatBytes(bytes: number) {
   </head>
   <body>
     <header class="hero">
-      <nav class="nav wrap" aria-label="主导航">
-        <a class="brand" href={base}>WAR3 <span>MAP ARCHIVE</span></a>
-        <div class="nav-links">
-          <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码</a>
-          {datasetUrl && (
-            <a href={datasetUrl} target="_blank" rel="noopener">Hugging Face 数据集</a>
-          )}
-        </div>
-      </nav>
+      <SiteNav />
       <div class="wrap hero-content">
         <p class="eyebrow">COMMUNITY MAP PRESERVATION</p>
         <h1>找图，校验，<br /><em>单独下载。</em></h1>
@@ -85,10 +79,12 @@ function formatBytes(bytes: number) {
       <p>地图版权归各自作者所有。本项目提供保存、检索和完整性校验。</p>
       <p>
         <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码仓库</a>
+        {datasetUrl && <> · <a href={datasetUrl} target="_blank" rel="noopener">Hugging Face 数据集</a></>}
       </p>
     </footer>
     <script>
       import "../scripts/browser.js";
     </script>
+    <Analytics />
   </body>
 </html>

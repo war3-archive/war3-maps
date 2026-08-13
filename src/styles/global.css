@@ -23,9 +23,11 @@ a { color: inherit; }
 .nav { height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #39413a; }
 .brand { text-decoration: none; font: 800 18px/1 ui-monospace, monospace; letter-spacing: .08em; color: #d5aa50; }
 .brand span { color: #e9eadf; font-weight: 500; }
-.nav-links { display: flex; gap: 24px; }
+.nav-links { display: flex; align-items: center; gap: 22px; }
 .nav-links a { color: #bdc3b8; text-decoration: none; font-size: 14px; }
 .nav-links a:hover { color: #fff; }
+.nav-icon { display: inline-flex; align-items: center; }
+.nav-icon svg { display: block; }
 .hero-content { padding: 62px 0 58px; }
 .hero.compact .hero-content { padding: 40px 0 46px; }
 .eyebrow { color: #d5aa50; font: 600 12px/1 ui-monospace, monospace; letter-spacing: .18em; }

@@ -1,0 +1,22 @@
+---
+const base = import.meta.env.BASE_URL;
+const REPO = "https://github.com/war3-archive/war3-maps";
+// The parser playground: same war3parser build this site runs in the detail
+// dialog, but as a drop-anything-in scratchpad.
+const PLAYGROUND = "https://wesleyel.github.io/war3parser/";
+---
+
+<nav class="nav wrap" aria-label="主导航">
+  <a class="brand" href={base}>WAR3 <span>MAP ARCHIVE</span></a>
+  <div class="nav-links">
+    <a href={PLAYGROUND} target="_blank" rel="noopener">地图解析</a>
+    <a class="nav-icon" href={REPO} target="_blank" rel="noopener" aria-label="在 GitHub 上查看源码" title="GitHub">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <path
+          fill="currentColor"
+          d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.4-.5-1.6.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"
+        />
+      </svg>
+    </a>
+  </div>
+</nav>
