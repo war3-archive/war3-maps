@@ -4,8 +4,17 @@ on:
   push:
     branches: [main]
     paths:
-      - "deploy/**"
+      - "src/**"
+      - "scripts/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "astro.config.mjs"
       - ".github/workflows/pages.yml"
+  # Covers and objects live in the dataset, so a catalog refresh is the only
+  # reason the published site changes without a code change.
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -28,23 +37,24 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
-      - name: Assemble catalog site
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build site
         env:
           HF_DATASET_REPO: ${{ vars.HF_DATASET_REPO }}
+          HF_CATALOG_URL: ${{ vars.HF_DATASET_REPO != '' && format('https://huggingface.co/datasets/{0}/resolve/main/catalog/maps.json', vars.HF_DATASET_REPO) || 'https://huggingface.co/datasets/magicwenli/war3-maps/resolve/main/catalog/maps.json' }}
         run: |
-          args=(--out site-dist)
-          if [[ -n "$HF_DATASET_REPO" ]]; then
-            args+=(--hf-repo "$HF_DATASET_REPO")
-            args+=(--catalog-url "https://huggingface.co/datasets/$HF_DATASET_REPO/resolve/main/catalog/maps.json")
-          elif [[ -f catalog/maps.json ]]; then
-            args+=(--catalog catalog/maps.json)
-          fi
-          python3 deploy/build_pages.py "${args[@]}"
+          npm ci
+          npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: site-dist
+          path: dist
 
   deploy:
     needs: build

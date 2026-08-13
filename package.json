@@ -1,0 +1,14 @@
+{
+  "name": "war3-maps-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-site.mjs",
+    "dev": "astro dev",
+    "build": "npm run generate && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.0.0"
+  }
+}

@@ -1,20 +1,44 @@
+---
+import buildInfo from "../data/build-info.json";
+import "../styles/global.css";
+
+const base = import.meta.env.BASE_URL;
+const collections = buildInfo.collections;
+const mapCount = buildInfo.map_count;
+const totalBytes = buildInfo.total_bytes ?? 0;
+const updatedAt = buildInfo.updated_at ?? null;
+const datasetUrl = buildInfo.dataset_url;
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "未知";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** exponent).toFixed(exponent > 1 ? 1 : 0)} ${units[exponent]}`;
+}
+---
+
 <!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="可搜索、可校验、支持单图下载的 Warcraft III 地图资料库。" />
+    <meta
+      name="description"
+      content="可搜索、可校验、支持单图下载的 Warcraft III 地图资料库。"
+    />
     <meta name="theme-color" content="#171c18" />
+    <link rel="preconnect" href="https://huggingface.co" crossorigin />
     <title>Warcraft III 地图资料库</title>
-    <link rel="stylesheet" href="./assets/catalog.css" />
   </head>
   <body>
     <header class="hero">
       <nav class="nav wrap" aria-label="主导航">
-        <a class="brand" href="./">WAR3 <span>MAP ARCHIVE</span></a>
+        <a class="brand" href={base}>WAR3 <span>MAP ARCHIVE</span></a>
         <div class="nav-links">
           <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码</a>
-          <a id="dataset-link" href="#" hidden>Hugging Face 数据集</a>
+          {datasetUrl && (
+            <a href={datasetUrl} target="_blank" rel="noopener">Hugging Face 数据集</a>
+          )}
         </div>
       </nav>
       <div class="wrap hero-content">
@@ -27,16 +51,20 @@
           <button type="submit">搜索</button>
         </form>
         <div class="stats" aria-live="polite">
-          <span><strong id="map-count">—</strong> 张地图</span>
-          <span><strong id="total-size">—</strong> 存档大小</span>
-          <span><strong id="updated-at">—</strong> 索引更新</span>
+          <span><strong>{mapCount.toLocaleString("zh-CN")}</strong> 张地图</span>
+          <span><strong>{formatBytes(totalBytes)}</strong> 存档大小</span>
+          <span><strong>{updatedAt ? new Date(updatedAt).toLocaleDateString("zh-CN") : "未知"}</strong> 索引更新</span>
         </div>
       </div>
     </header>
 
     <main class="wrap content">
       <section class="toolbar" aria-label="筛选和排序">
-        <div id="category-list" class="categories"></div>
+        <nav id="category-list" class="categories" aria-label="地图分类">
+          {collections.map((entry) => (
+            <a href={base + `categories/${entry.slug}/`}>{entry.name} {entry.count}</a>
+          ))}
+        </nav>
         <label class="sort">
           <span>排序</span>
           <select id="sort-select">
@@ -47,39 +75,19 @@
         </label>
       </section>
 
-      <div id="notice" class="notice" role="status">正在载入地图索引…</div>
+      <div id="notice" class="notice" role="status">输入关键词开始搜索，或选择一个分类浏览。</div>
       <section id="results" class="results" aria-label="地图搜索结果"></section>
       <button id="load-more" class="load-more" type="button" hidden>显示更多</button>
     </main>
 
-    <template id="map-template">
-      <article class="map-card">
-        <div class="cover-wrap">
-          <img class="cover" alt="" loading="lazy" decoding="async" />
-        </div>
-        <div class="card-topline">
-          <span class="category"></span>
-          <span class="size"></span>
-        </div>
-        <h2 class="name"></h2>
-        <p class="description"></p>
-        <dl class="metadata">
-          <div><dt>作者</dt><dd class="author"></dd></div>
-          <div><dt>玩家</dt><dd class="players"></dd></div>
-          <div><dt>格式</dt><dd class="format"></dd></div>
-          <div><dt>版本</dt><dd class="version"></dd></div>
-        </dl>
-        <div class="card-actions">
-          <a class="download" href="#">单图下载</a>
-          <button class="copy-hash" type="button">复制 SHA-256</button>
-        </div>
-      </article>
-    </template>
-
     <footer class="wrap footer">
       <p>地图版权归各自作者所有。本项目提供保存、检索和完整性校验。</p>
-      <p><a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码仓库</a></p>
+      <p>
+        <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码仓库</a>
+      </p>
     </footer>
-    <script type="module" src="./assets/catalog.js"></script>
+    <script>
+      import "../scripts/search.js";
+    </script>
   </body>
 </html>

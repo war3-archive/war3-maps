@@ -1,0 +1,78 @@
+---
+import buildInfo from "../../data/build-info.json";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  return buildInfo.collections.map((entry) => ({
+    params: { slug: entry.slug },
+    props: entry,
+  }));
+}
+
+const { name, slug, count, page_count } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={`${name} 分类的 Warcraft III 地图，共 ${count} 张。`} />
+    <link rel="preconnect" href="https://huggingface.co" crossorigin />
+    <link rel="preload" href={`${base}data/categories/${slug}/0.json`} as="fetch" crossorigin />
+    <title>{name} · Warcraft III 地图资料库</title>
+  </head>
+  <body>
+    <header class="hero compact">
+      <nav class="nav wrap" aria-label="主导航">
+        <a class="brand" href={base}>WAR3 <span>MAP ARCHIVE</span></a>
+        <div class="nav-links">
+          <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码</a>
+        </div>
+      </nav>
+      <div class="wrap hero-content">
+        <p class="eyebrow">CATEGORY</p>
+        <h1>{name}</h1>
+        <p class="intro">共 {count} 张地图，点击“显示更多”继续加载。</p>
+      </div>
+    </header>
+
+    <main class="wrap content">
+      <section class="toolbar" aria-label="分类导航">
+        <nav class="categories" aria-label="地图分类">
+          {buildInfo.collections.map((entry) => (
+            <a
+              href={base + `categories/${entry.slug}/`}
+              aria-current={entry.slug === slug ? "page" : undefined}
+            >
+              {entry.name} {entry.count}
+            </a>
+          ))}
+        </nav>
+      </section>
+
+      <div id="notice" class="notice" role="status">正在载入地图…</div>
+      <section
+        id="results"
+        class="results"
+        aria-label={`${name} 地图列表`}
+        data-slug={slug}
+        data-collection={name}
+        data-page-count={page_count}
+        data-total={count}
+      ></section>
+      <button id="load-more" class="load-more" type="button" hidden>显示更多</button>
+    </main>
+
+    <footer class="wrap footer">
+      <p>地图版权归各自作者所有。本项目提供保存、检索和完整性校验。</p>
+      <p>
+        <a href={base}>返回搜索</a>
+      </p>
+    </footer>
+    <script>
+      import "../../scripts/category.js";
+    </script>
+  </body>
+</html>
