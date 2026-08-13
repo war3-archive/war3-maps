@@ -250,5 +250,35 @@ export function parse_map(buffer: Uint8Array): War3MapMetadata | undefined;
 /** Backward-compatible alias of {@link parse_map}. */
 export function get_map_info(buffer: Uint8Array): War3MapMetadata | undefined;
 
+/**
+ * Parse a map, keeping the reason when it fails.
+ * {@link parse_map} collapses every failure into `undefined`; this reports why.
+ */
+export function parse_map_result(buffer: Uint8Array): ParseResult;
+
+/** Result of {@link parse_map_result}. */
+export type ParseResult =
+  | { ok: true; map: War3MapMetadata }
+  | { ok: false; error: string };
+
+/**
+ * The archive's `(listfile)` entries.
+ * `undefined` when the archive cannot be opened, `null` when it carries no
+ * listfile — common for protected maps, whose files stay reachable by name.
+ */
+export function list_files(buffer: Uint8Array): string[] | null | undefined;
+
+/**
+ * Extract one file by its in-archive name, e.g. `war3map.j` or
+ * `scripts\\war3map.j`. `undefined` when absent or unreadable.
+ */
+export function extract_file(buffer: Uint8Array, name: string): Uint8Array | undefined;
+
+/**
+ * Scan the map script for known third-party modifications.
+ * `undefined` means no known signature matched — not that the map is clean.
+ */
+export function detect_modification(buffer: Uint8Array): ModInfo | undefined;
+
 /** Crate version string. */
 export function version(): string;
