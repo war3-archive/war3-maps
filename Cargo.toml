@@ -1,9 +1,9 @@
 [package]
 name = "war3-mpq"
-version = "0.9.0"
+version = "0.9.1"
 authors = [
     "Michael Sierks <msierks117@gmail.com>",
-    "wesleyel",
+    "wesleyel <48174882+wesleyel@users.noreply.github.com>",
 ]
 license = "MIT/Apache-2.0"
 description = "Read MPQ archives, hardened against protected Warcraft III maps (fork of mpq 0.8.1)"
