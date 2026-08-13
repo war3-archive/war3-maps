@@ -1,8 +1,8 @@
-use war3_mpq::Archive;
 use std::env;
 use std::io::{self, Write};
 use std::process;
 use std::str;
+use war3_mpq::Archive;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
