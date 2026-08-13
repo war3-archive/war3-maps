@@ -58,7 +58,7 @@ h1 em { color: #d5aa50; font-weight: inherit; }
 .result-name:hover { color: #e7c77e; }
 .result-meta { margin: 6px 0 0; color: #8e978d; font-size: 12px; }
 .result-download { flex: 0 0 auto; min-height: 36px; padding: 8px 18px; border-radius: 3px; font-size: 13px; text-decoration: none; }
-.map-card { min-width: 0; padding: 12px; border: 1px solid #343c35; background: #171c18; border-radius: 4px; }
+.map-card { position: relative; min-width: 0; padding: 12px; border: 1px solid #343c35; background: #171c18; border-radius: 4px; }
 .map-card:hover { border-color: #5b665c; transform: translateY(-1px); }
 .map-card--highlight { border-color: #d5aa50; box-shadow: 0 0 0 3px rgba(213, 170, 80, .22); }
 .results:empty + .load-more { display: none; }
@@ -74,6 +74,25 @@ h1 em { color: #d5aa50; font-weight: inherit; }
 .metadata div { min-width: 0; }
 .metadata dt { color: #6f796f; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
 .metadata dd { margin: 3px 0 0; overflow: hidden; color: #bdc3ba; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+/* Modification corner mark. Sits over the cover, but is a child of the card so
+   the hover card is not clipped by .cover-wrap's overflow. */
+.mod-badge { position: absolute; top: 8px; right: 8px; z-index: 3; }
+.mod-mark { display: block; padding: 3px 6px; border: 1px solid #a8622f; border-radius: 3px; background: rgba(28, 14, 6, .88); color: #e8a05a; font: 700 9px/1.2 ui-monospace, monospace; letter-spacing: .08em; cursor: help; }
+.mod-badge:hover .mod-mark, .mod-badge:focus-visible .mod-mark { border-color: #e8a05a; color: #ffc182; }
+.mod-badge:focus-visible { outline: 2px solid #d5aa50; outline-offset: 2px; border-radius: 3px; }
+.mod-tip {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 4;
+  width: max-content; max-width: min(260px, 78vw);
+  padding: 10px 12px; border: 1px solid #5a4326; border-radius: 4px;
+  background: #14100b; color: #cfd3c8; font-size: 11px; line-height: 1.55;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .5);
+  opacity: 0; visibility: hidden; transition: opacity .12s ease;
+}
+.mod-badge:hover .mod-tip, .mod-badge:focus .mod-tip, .mod-badge:focus-within .mod-tip { opacity: 1; visibility: visible; }
+.mod-tip strong { display: block; margin-bottom: 6px; color: #e8a05a; font-size: 11px; }
+.mod-tip ul { margin: 0; padding-left: 16px; }
+.mod-tip li { margin-bottom: 3px; }
+.mod-tip em { display: block; margin-top: 6px; color: #8a8f83; font-style: normal; font-size: 10px; }
 .client-badge { display: inline-flex; align-items: center; gap: 4px; }
 .client-badge svg { flex: 0 0 auto; width: 12px; height: 12px; }
 .card-actions { display: flex; gap: 6px; }

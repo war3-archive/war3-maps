@@ -102,6 +102,61 @@ function clientBadge(clientIndex, label, evidence) {
   return wrap;
 }
 
+/** Prose for each detected tool, written once per build (see generate-site.mjs). */
+const MOD_INFO = buildInfo.mods ?? {};
+
+/** Split a card's `mod` cell back into `{ tool, variant, ...prose }`. */
+export function modOf(cell) {
+  if (!cell) return null;
+  const [tool, variant] = String(cell).split("|");
+  const info = MOD_INFO[tool];
+  if (!info) return null;
+  return { tool, variant: variant || null, ...info };
+}
+
+/**
+ * Corner mark on the cover: this map's script carries a known third-party
+ * modification. The hover card explains how it is triggered in game, because
+ * "被改过" on its own tells a player nothing useful.
+ */
+function modBadge(mod) {
+  const wrap = document.createElement("span");
+  wrap.className = "mod-badge";
+  // Focusable so the tip is reachable without a pointer.
+  wrap.tabIndex = 0;
+
+  const mark = document.createElement("span");
+  mark.className = "mod-mark";
+  mark.textContent = "MOD";
+  mark.setAttribute("aria-hidden", "true");
+
+  const tip = document.createElement("span");
+  tip.className = "mod-tip";
+  tip.setAttribute("role", "tooltip");
+  const title = document.createElement("strong");
+  title.textContent = mod.variant ? `${mod.label} · ${mod.variant}` : mod.label;
+  tip.append(title);
+  if (mod.activation.length) {
+    const list = document.createElement("ul");
+    for (const step of mod.activation) {
+      const item = document.createElement("li");
+      item.textContent = step;
+      list.append(item);
+    }
+    tip.append(list);
+  }
+  const note = document.createElement("em");
+  note.textContent = "脚本内检出，非原作者内容";
+  tip.append(note);
+
+  const sr = document.createElement("span");
+  sr.className = "sr-only";
+  sr.textContent = `含第三方修改：${title.textContent}`;
+
+  wrap.append(mark, sr, tip);
+  return wrap;
+}
+
 function metadataRow(term, value) {
   const group = document.createElement("div");
   const dt = document.createElement("dt");
@@ -115,12 +170,13 @@ function metadataRow(term, value) {
 
 /**
  * Build a card from a category tuple:
- * [sha, name, author, desc, size, players, ext, client, minVersion, evidence, cover].
+ * [sha, name, author, desc, size, players, ext, client, minVersion, evidence, cover, mod].
  */
 export function buildCard(tuple, collectionName) {
-  const [sha256, name, author, description, size, players, extension, client, minVersion, evidence, hasCover] =
+  const [sha256, name, author, description, size, players, extension, client, minVersion, evidence, hasCover, modCell] =
     tuple;
   const label = name || "地图";
+  const mod = modOf(modCell);
 
   const article = document.createElement("article");
   article.className = "map-card";
@@ -215,10 +271,14 @@ export function buildCard(tuple, collectionName) {
     evidence,
     clientName: CLIENT_GLYPHS[client]?.name ?? "",
     hasCover: Boolean(hasCover),
+    mod,
   };
   actions.append(download, detail);
 
   article.append(coverWrap, top, heading, summary, metadata, actions);
+  // Outside .cover-wrap on purpose: that element clips its overflow, which would
+  // cut the hover card off at the cover's edge.
+  if (mod) article.append(modBadge(mod));
   return article;
 }
 

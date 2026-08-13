@@ -179,6 +179,36 @@ function renderCatalogFacts(map) {
   ]);
 }
 
+/**
+ * What the script scan found, spelled out. The card only has room for a corner
+ * mark, so the activation steps and the source link live here.
+ */
+function renderModification(mod) {
+  const wrap = element("div");
+  wrap.append(
+    kvList([
+      ["注入内容", mod.variant ? `${mod.label} · ${mod.variant}` : mod.label],
+      ["触发方式", mod.activation.join("；") || "未知"],
+    ]),
+  );
+  const note = element(
+    "p",
+    "detail-footnote",
+    "由脚本特征扫描得出，属第三方后加内容，非地图原作者提供。未标记不等于干净：受保护的地图读不到脚本。",
+  );
+  wrap.append(note);
+  if (mod.reference) {
+    const link = element("a", null, mod.reference);
+    link.href = mod.reference;
+    link.rel = "nofollow noopener noreferrer";
+    link.target = "_blank";
+    const line = element("p", "detail-footnote");
+    line.append(document.createTextNode("工具说明："), link);
+    wrap.append(line);
+  }
+  return wrap;
+}
+
 function panel(title, node) {
   const section = element("section", "detail-panel");
   section.append(element("h3", null, title), node);
@@ -361,6 +391,7 @@ export function openDetail(map) {
   const body = dialog.querySelector(".detail-body");
   body.replaceChildren();
   body.append(panel("索引信息", renderCatalogFacts(map)));
+  if (map.mod) body.append(panel("第三方修改", renderModification(map.mod)));
 
   const parseSection = element("section", "detail-parse");
   const status = element("p", "detail-status");

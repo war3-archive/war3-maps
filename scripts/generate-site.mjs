@@ -95,11 +95,32 @@ const versionOf = (record) => {
   };
 };
 
+// Modifications are described once per tool rather than per map: every map a
+// tool touched carries the same label, activation steps and reference, and
+// repeating that text 2200 times would dwarf the card payload. Cards carry
+// `tool` (plus the build string when the scan recognised one) and the browser
+// looks the prose up in build-info.
+const mods = {};
+for (const record of maps) {
+  const modification = record.modification;
+  if (!modification?.tool || mods[modification.tool]) continue;
+  mods[modification.tool] = {
+    label: modification.label,
+    activation: modification.activation ?? [],
+    reference: modification.reference ?? null,
+  };
+}
+const modOf = (record) => {
+  const modification = record.modification;
+  if (!modification?.tool) return 0;
+  return modification.variant ? `${modification.tool}|${modification.variant}` : modification.tool;
+};
+
 // Card tuple: name, author, description, size, players, extension, client index,
-// minimum-version label, evidence string, has cover.
+// minimum-version label, evidence string, has cover, modification.
 const CARD_FIELDS = [
   "sha256", "name", "author", "description", "size", "players", "ext",
-  "client", "min_version", "version_evidence", "cover",
+  "client", "min_version", "version_evidence", "cover", "mod",
 ];
 const cardOf = (record) => {
   const version = versionOf(record);
@@ -115,6 +136,7 @@ const cardOf = (record) => {
     version.label,
     version.evidence,
     record.cover_path ? 1 : 0,
+    modOf(record),
   ];
 };
 
@@ -191,6 +213,8 @@ const overview = {
     ? `https://huggingface.co/datasets/${process.env.HF_DATASET_REPO}`
     : objectBase.split("/resolve/")[0] || null,
   collections: overviewCollections,
+  mods,
+  mod_count: maps.filter((record) => record.modification).length,
 };
 await writeFile(path.join(dataDir, "overview.json"), JSON.stringify(overview));
 
