@@ -192,38 +192,61 @@ impl Archive {
         }
 
         let header = Header::new(&buffer);
+        let total = file.get_ref().len() as u64;
+
+        // Table sizes come from the header and are routinely inflated by map
+        // protectors: a block count of 33410 in a 1.7 MB file makes a reader
+        // that trusts it fail on a short read. Clamp both tables to what the
+        // archive actually contains and read what is there.
+        let entries_after = |start: u64, entry: usize| -> u64 {
+            total.saturating_sub(start) / entry as u64
+        };
 
         // read hash table
-        let mut hash_buff: Vec<u8> =
-            vec![0; (header.hash_table_count as usize) * mem::size_of::<Hash>()];
-        let mut hash_table: Vec<Hash> = Vec::with_capacity(header.hash_table_count as usize);
+        let hash_start = u64::from(header.hash_table_offset) + offset;
+        let hash_room = entries_after(hash_start, mem::size_of::<Hash>());
+        if hash_room == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "MPQ hash table lies outside the archive",
+            ));
+        }
+        // The bucket index is masked with `len - 1`, so a truncated hash table
+        // must stay a power of two or every lookup would land in the wrong slot.
+        let hash_count = if u64::from(header.hash_table_count) <= hash_room {
+            header.hash_table_count
+        } else if hash_room.is_power_of_two() {
+            hash_room as u32
+        } else {
+            (hash_room.next_power_of_two() >> 1) as u32
+        };
+        let mut hash_buff: Vec<u8> = vec![0; (hash_count as usize) * mem::size_of::<Hash>()];
+        let mut hash_table: Vec<Hash> = Vec::with_capacity(hash_count as usize);
 
-        file.seek(SeekFrom::Start(
-            u64::from(header.hash_table_offset) + offset,
-        ))?;
+        file.seek(SeekFrom::Start(hash_start))?;
 
         file.read_exact(&mut hash_buff)?;
 
         decrypt(&mut hash_buff, hash_string("(hash table)", 0x300));
 
-        for x in 0..header.hash_table_count {
+        for x in 0..hash_count {
             hash_table.push(Hash::new(&hash_buff[x as usize * mem::size_of::<Hash>()..]));
         }
 
         // read block table
-        let mut block_buff: Vec<u8> =
-            vec![0; (header.block_table_count as usize) * mem::size_of::<Block>()];
-        let mut block_table: Vec<Block> = Vec::with_capacity(header.block_table_count as usize);
+        let block_start = u64::from(header.block_table_offset) + offset;
+        let block_room = entries_after(block_start, mem::size_of::<Block>());
+        let block_count = header.block_table_count.min(block_room as u32);
+        let mut block_buff: Vec<u8> = vec![0; (block_count as usize) * mem::size_of::<Block>()];
+        let mut block_table: Vec<Block> = Vec::with_capacity(block_count as usize);
 
-        file.seek(SeekFrom::Start(
-            u64::from(header.block_table_offset) + offset,
-        ))?;
+        file.seek(SeekFrom::Start(block_start))?;
 
         file.read_exact(&mut block_buff)?;
 
         decrypt(&mut block_buff, hash_string("(block table)", 0x300));
 
-        for x in 0..header.block_table_count {
+        for x in 0..block_count {
             block_table.push(Block::new(
                 &block_buff[x as usize * mem::size_of::<Block>()..],
             ));
