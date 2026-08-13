@@ -130,12 +130,14 @@ function modBadge(mod) {
   mark.textContent = "MOD";
   mark.setAttribute("aria-hidden", "true");
 
+  const signature = mod.variant ? `${mod.label} @ ${mod.variant}` : mod.label;
+
   const tip = document.createElement("span");
   tip.className = "mod-tip";
   tip.setAttribute("role", "tooltip");
-  const title = document.createElement("strong");
-  title.textContent = mod.variant ? `${mod.label} · ${mod.variant}` : mod.label;
-  tip.append(title);
+  const lead = document.createElement("strong");
+  lead.textContent = "此地图存在第三方修改，仍可以游玩，但主动使用修改会影响游戏乐趣";
+  tip.append(lead);
   if (mod.activation.length) {
     const list = document.createElement("ul");
     for (const step of mod.activation) {
@@ -145,13 +147,13 @@ function modBadge(mod) {
     }
     tip.append(list);
   }
-  const note = document.createElement("em");
-  note.textContent = "脚本内检出，非原作者内容";
-  tip.append(note);
+  const found = document.createElement("em");
+  found.textContent = `检测到 ${signature}`;
+  tip.append(found);
 
   const sr = document.createElement("span");
   sr.className = "sr-only";
-  sr.textContent = `含第三方修改：${title.textContent}`;
+  sr.textContent = `含第三方修改：${signature}`;
 
   wrap.append(mark, sr, tip);
   return wrap;

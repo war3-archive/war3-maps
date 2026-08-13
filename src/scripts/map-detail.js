@@ -191,21 +191,6 @@ function renderModification(mod) {
       ["触发方式", mod.activation.join("；") || "未知"],
     ]),
   );
-  const note = element(
-    "p",
-    "detail-footnote",
-    "由脚本特征扫描得出，属第三方后加内容，非地图原作者提供。未标记不等于干净：受保护的地图读不到脚本。",
-  );
-  wrap.append(note);
-  if (mod.reference) {
-    const link = element("a", null, mod.reference);
-    link.href = mod.reference;
-    link.rel = "nofollow noopener noreferrer";
-    link.target = "_blank";
-    const line = element("p", "detail-footnote");
-    line.append(document.createTextNode("工具说明："), link);
-    wrap.append(line);
-  }
   return wrap;
 }
 

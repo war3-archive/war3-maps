@@ -89,10 +89,10 @@ h1 em { color: #d5aa50; font-weight: inherit; }
   opacity: 0; visibility: hidden; transition: opacity .12s ease;
 }
 .mod-badge:hover .mod-tip, .mod-badge:focus .mod-tip, .mod-badge:focus-within .mod-tip { opacity: 1; visibility: visible; }
-.mod-tip strong { display: block; margin-bottom: 6px; color: #e8a05a; font-size: 11px; }
-.mod-tip ul { margin: 0; padding-left: 16px; }
-.mod-tip li { margin-bottom: 3px; }
-.mod-tip em { display: block; margin-top: 6px; color: #8a8f83; font-style: normal; font-size: 10px; }
+.mod-tip strong { display: block; color: #e4e6dc; font-weight: 600; font-size: 11px; }
+.mod-tip ul { margin: 7px 0 0; padding-left: 15px; color: #9aa094; font-size: 10px; line-height: 1.5; }
+.mod-tip li { margin-bottom: 2px; }
+.mod-tip em { display: block; margin-top: 8px; padding-top: 6px; border-top: 1px solid #33291c; color: #c98a4a; font: 10px/1.4 ui-monospace, monospace; font-style: normal; }
 .client-badge { display: inline-flex; align-items: center; gap: 4px; }
 .client-badge svg { flex: 0 0 auto; width: 12px; height: 12px; }
 .card-actions { display: flex; gap: 6px; }
