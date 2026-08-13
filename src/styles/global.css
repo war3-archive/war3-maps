@@ -46,6 +46,8 @@ h1 em { color: #d5aa50; font-weight: inherit; }
 .categories a, .categories button, .sort select, .copy-hash, .load-more { border: 1px solid #414941; background: #181e19; color: #c9cec5; border-radius: 3px; padding: 9px 12px; cursor: pointer; text-decoration: none; font: inherit; }
 .categories a[aria-current="page"], .categories button[aria-pressed="true"] { border-color: #d5aa50; color: #e7c77e; background: #2a271c; }
 .sort { display: flex; align-items: center; gap: 8px; color: #8e978d; font-size: 13px; white-space: nowrap; }
+.scope { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; color: #8e978d; font-size: 13px; cursor: pointer; }
+.scope input { width: 15px; height: 15px; accent-color: #c89938; cursor: pointer; }
 .notice { border: 1px dashed #414941; padding: 22px; color: #9da59b; text-align: center; }
 .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .result-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 14px 18px; border: 1px solid #343c35; background: #171c18; border-radius: 4px; }

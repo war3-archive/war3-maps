@@ -68,6 +68,7 @@ function formatBytes(bytes: number) {
         <label class="sort">
           <span>排序</span>
           <select id="sort-select">
+            <option value="relevance">相关度</option>
             <option value="name">名称</option>
             <option value="size-desc">文件大小</option>
             <option value="players-desc">玩家人数</option>
@@ -87,7 +88,7 @@ function formatBytes(bytes: number) {
       </p>
     </footer>
     <script>
-      import "../scripts/search.js";
+      import "../scripts/browser.js";
     </script>
   </body>
 </html>

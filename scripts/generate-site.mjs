@@ -152,37 +152,29 @@ for (const name of collections) {
   overviewCollections.push({ name, slug, count: list.length, page_count: pageCount });
 }
 
-// Search tuple: name, author, filename (only when it differs), collection index,
-// size, players, w3i version, extension, has cover.
-const SEARCH_FIELDS = ["sha256", "name", "author", "filename", "collection", "size", "players", "min_version", "ext", "client", "offset"];
+// The search index is an index and nothing more: enough to match a query, sort
+// the hits, and locate each one inside a category shard. Every field a card
+// displays — cover, description, version badge, download link — is read from the
+// shard at render time instead of being duplicated 10365 times here. Dropping
+// the SHA-256 alone took this file from 710 KB to 258 KB gzipped.
+const SEARCH_FIELDS = ["name", "author", "filename", "collection", "offset", "size", "players"];
 const collectionIndex = new Map(collections.map((name, index) => [name, index]));
 const searchIndex = maps
   .slice()
   .sort((a, b) => collator.compare(a.name || a.filename || "", b.name || b.filename || ""))
-  .map((record) => {
-    const version = versionOf(record);
-    return [
-      record.sha256,
-      record.name || record.filename || "",
-      record.author || "",
-      distinctFilename(record),
-      collectionIndex.get(collectionOf(record)) ?? 0,
-      record.size ?? 0,
-      playersOf(record),
-      version.label,
-      record.extension || "",
-      version.client,
-      offsetOf.get(record.sha256) ?? 0,
-    ];
-  });
+  .map((record) => [
+    record.name || record.filename || "",
+    record.author || "",
+    distinctFilename(record),
+    collectionIndex.get(collectionOf(record)) ?? 0,
+    offsetOf.get(record.sha256) ?? 0,
+    record.size ?? 0,
+    playersOf(record),
+  ]);
 
 await writeFile(
   path.join(dataDir, "search-index.json"),
-  JSON.stringify({
-    fields: SEARCH_FIELDS,
-    collections: collections.map((name) => ({ name, slug: name })),
-    maps: searchIndex,
-  }),
+  JSON.stringify({ fields: SEARCH_FIELDS, maps: searchIndex }),
 );
 
 const overview = {

@@ -9,7 +9,7 @@ export function getStaticPaths() {
   }));
 }
 
-const { name, slug, count, page_count } = Astro.props;
+const { name, slug, count } = Astro.props;
 const base = import.meta.env.BASE_URL;
 ---
 
@@ -34,12 +34,21 @@ const base = import.meta.env.BASE_URL;
       <div class="wrap hero-content">
         <p class="eyebrow">CATEGORY</p>
         <h1>{name}</h1>
-        <p class="intro">共 {count} 张地图，点击“显示更多”继续加载。</p>
+        <p class="intro">共 {count} 张地图。也可以直接在下面搜索，不必回到首页。</p>
+        <form id="search-form" class="search" role="search">
+          <label class="sr-only" for="search-input">搜索地图</label>
+          <input id="search-input" type="search" autocomplete="off" placeholder="搜索地图名、作者或文件名…" />
+          <button type="submit">搜索</button>
+        </form>
+        <label class="scope">
+          <input id="search-scope" type="checkbox" checked />
+          <span>仅在「{name}」内搜索</span>
+        </label>
       </div>
     </header>
 
     <main class="wrap content">
-      <section class="toolbar" aria-label="分类导航">
+      <section class="toolbar" aria-label="筛选和排序">
         <nav class="categories" aria-label="地图分类">
           {buildInfo.collections.map((entry) => (
             <a
@@ -50,6 +59,15 @@ const base = import.meta.env.BASE_URL;
             </a>
           ))}
         </nav>
+        <label class="sort">
+          <span>排序</span>
+          <select id="sort-select">
+            <option value="relevance">相关度</option>
+            <option value="name">名称</option>
+            <option value="size-desc">文件大小</option>
+            <option value="players-desc">玩家人数</option>
+          </select>
+        </label>
       </section>
 
       <div id="notice" class="notice" role="status">正在载入地图…</div>
@@ -57,9 +75,7 @@ const base = import.meta.env.BASE_URL;
         id="results"
         class="results"
         aria-label={`${name} 地图列表`}
-        data-slug={slug}
         data-collection={name}
-        data-page-count={page_count}
         data-total={count}
       ></section>
       <button id="load-more" class="load-more" type="button" hidden>显示更多</button>
@@ -68,11 +84,11 @@ const base = import.meta.env.BASE_URL;
     <footer class="wrap footer">
       <p>地图版权归各自作者所有。本项目提供保存、检索和完整性校验。</p>
       <p>
-        <a href={base}>返回搜索</a>
+        <a href={base}>返回首页</a>
       </p>
     </footer>
     <script>
-      import "../../scripts/category.js";
+      import "../../scripts/browser.js";
     </script>
   </body>
 </html>
