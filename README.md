@@ -120,11 +120,21 @@ npm install @wesleyel/war3parser
 ```
 
 ```javascript
-import init, { parse_map, version } from "@wesleyel/war3parser";
+import init, { parse_map, parse_map_result, list_files, extract_file, detect_modification, version }
+  from "@wesleyel/war3parser";
 
 await init();
 const meta = parse_map(new Uint8Array(buffer));
 console.log(version(), meta?.map_info?.name, meta?.strings?.length);
+
+// Why a map failed, instead of a bare `undefined`
+const result = parse_map_result(new Uint8Array(buffer));
+if (!result.ok) console.warn(result.error);
+
+// Reach into the archive directly
+const script = extract_file(new Uint8Array(buffer), "war3map.j");
+const files = list_files(new Uint8Array(buffer));
+const injected = detect_modification(new Uint8Array(buffer));
 ```
 
 `parse_map` returns:
