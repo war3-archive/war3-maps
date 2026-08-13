@@ -443,7 +443,20 @@ impl File {
         if self.block.flags & FILE_COMPRESS_MASK != 0 {
             for i in 0..self.sector_offsets.len() - 1 {
                 let sector_offset = self.sector_offsets[i];
-                let sector_size = self.sector_offsets[i + 1] - sector_offset;
+                // Sector offsets come from the archive and are not validated by
+                // the format: a protected or truncated map can make them
+                // decrease, or claim a sector larger than the sector buffer.
+                let sector_size = self.sector_offsets[i + 1]
+                    .checked_sub(sector_offset)
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::InvalidData, "MPQ sector offsets are not monotonic")
+                    })?;
+                if sector_size as usize > buff.len() || read > out.len() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "MPQ sector exceeds the declared sector size",
+                    ));
+                }
 
                 let in_buf: &mut [u8] = &mut buff[0..sector_size as usize];
                 let out_buf: &mut [u8] = &mut out[read..];
