@@ -186,7 +186,10 @@ pub fn decrypt(data: &mut [u8], mut seed: u32) {
     let mut it = 0;
     let mut ch;
 
-    while it < data.len() - 3 {
+    // `data.len() - 3` underflows on a buffer shorter than 4 bytes, which then
+    // reads past the end. An archive whose block table is empty or truncated
+    // reaches here with exactly such a buffer.
+    while it + 4 <= data.len() {
         seed2 = seed2.wrapping_add(CRYPT_TABLE[(0x400 + (seed & 0xff)) as usize]);
         ch = LittleEndian::read_u32(&data[it..]) ^ (seed.wrapping_add(seed2));
         seed = ((!seed << 0x15).wrapping_add(0x11111111)) | (seed >> 0x0b);
