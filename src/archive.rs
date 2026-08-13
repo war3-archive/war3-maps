@@ -169,23 +169,24 @@ impl Archive {
 
             if buffer.starts_with(ID_MPQB) {
                 let header = UserDataHeader::new(&buffer);
+                let candidate = offset + u64::from(header.header_offset);
 
-                offset += u64::from(header.header_offset);
+                // Map protectors write a user data header whose offset points
+                // nowhere, so that a reader following it gives up before
+                // reaching the real header a sector or two later. Treat a user
+                // data header that does not land on `MPQ\x1a` as decoration and
+                // keep scanning.
+                let mut probe: [u8; HEADER_SIZE_V1] = [0; HEADER_SIZE_V1];
+                let landed = file.seek(SeekFrom::Start(candidate)).is_ok()
+                    && file.read_exact(&mut probe).is_ok()
+                    && probe.starts_with(ID_MPQA);
 
-                file.seek(SeekFrom::Start(offset))?;
-
-                file.read_exact(&mut buffer)?;
-
-                if !buffer.starts_with(ID_MPQA) {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "Not a valid MPQ archive",
-                    ));
+                if landed {
+                    buffer = probe;
+                    offset = candidate;
+                    user_data_header = Some(header);
+                    break;
                 }
-
-                user_data_header = Some(header);
-
-                break;
             }
 
             offset += 0x200;
