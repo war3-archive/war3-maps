@@ -730,7 +730,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "war3-manager-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -744,9 +744,9 @@ dependencies = [
 
 [[package]]
 name = "war3-mpq"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e44f1342ce4cac3b84e773800b73f25058fdd0fd8b567fb250b565d3c52efa"
+checksum = "42b00a6518f9750877bd467a694871092601c56a878a8cc5230af89042870890"
 dependencies = [
  "adler32",
  "byteorder",
@@ -758,9 +758,9 @@ dependencies = [
 
 [[package]]
 name = "war3parser"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d314f2885fda0b8e3fee1e10f8c54bb3e2b2d62f01e7620cead9697ebdc9b3f3"
+checksum = "803d84ec28a6a3e5a072400534603f3f5f7e0f6303b02efc2fe14bfb83aaf67d"
 dependencies = [
  "base64",
  "image",

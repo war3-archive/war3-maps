@@ -14,3 +14,6 @@ site-dist/
 deploy/**/__pycache__/
 tmp_conclusion.md
 *.tsbuildinfo
+
+# Scan output written into the repo root by the Justfile recipes.
+rescan.jsonl

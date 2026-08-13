@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/manager-cli"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Archive management for Warcraft III maps: catalog, dataset and release workflow"
 homepage = "https://github.com/war3-archive/war3-manager"
@@ -32,4 +32,4 @@ serde = "1.0.204"
 serde_json = "1.0.135"
 
 # Parsing lives upstream in war3parser.
-war3parser = { version = "0.5.1", features = ["serde"] }
+war3parser = { version = "0.5.2", features = ["serde"] }

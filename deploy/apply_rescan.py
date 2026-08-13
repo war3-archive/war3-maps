@@ -23,6 +23,7 @@ from pathlib import Path
 # Fields owned by the file itself. Everything else in a record is provenance.
 DERIVED = (
     "name",
+    "name_source",
     "author",
     "description",
     "recommended_players",
@@ -37,6 +38,50 @@ DERIVED = (
     "parse_status",
     "parse_error",
 )
+
+
+def strip_warcraft_codes(text: str) -> str:
+    """Mirror of `catalog.rs::strip_warcraft_codes` for names repaired here."""
+    out = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char != "|" or index + 1 >= len(text):
+            out.append(char)
+            index += 1
+            continue
+        marker = text[index + 1]
+        if marker in "cC" and len(text) >= index + 10 and all(
+            c in "0123456789abcdefABCDEF" for c in text[index + 2 : index + 10]
+        ):
+            index += 10
+        elif marker in "rR":
+            index += 2
+        elif marker in "nN":
+            out.append(" ")
+            index += 2
+        elif marker == "|":
+            out.append("|")
+            index += 2
+        else:
+            out.append(char)
+            index += 1
+    return " ".join("".join(out).split())
+
+
+def name_from_filename(item: dict) -> str | None:
+    """The map's own filename, which the catalog preserves as provenance.
+
+    `rescan` walks the content-addressed `objects/` tree, so the filename it
+    sees is the sha256 and its filename-tier name is a hash, not a title. The
+    original name survives in the record, so repair from there instead.
+    """
+    filename = item.get("filename")
+    if not isinstance(filename, str) or not filename:
+        return None
+    stem = Path(filename).stem
+    cleaned = strip_warcraft_codes(stem)
+    return cleaned or None
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,6 +146,12 @@ def main() -> None:
                 continue
             if args.keep_names and field in ("name", "author", "description") and item.get(field):
                 continue
+            if field == "name" and record.get("name_source") == "filename":
+                # Would write the sha256 over the record's real title.
+                repaired = name_from_filename(item)
+                if repaired is not None:
+                    item["name"] = repaired
+                    continue
             item[field] = record[field]
 
         modification = record.get("modification")
@@ -114,10 +165,15 @@ def main() -> None:
         if record.get("cover_source"):
             item["cover_source"] = record["cover_source"]
 
+        # A map that stays unreadable can still gain a real name, because the
+        # HM3W tier does not depend on the archive opening. Count those too, or
+        # a run that recovers hundreds of titles reports as a no-op.
+        if before_name != item.get("name"):
+            outcomes["renamed"] += 1
+            renamed.append({"sha256": item["sha256"], "from": before_name, "to": item["name"]})
+
         if was_broken and item.get("parse_status") == "ok":
             outcomes["recovered"] += 1
-            if before_name != item.get("name"):
-                renamed.append({"sha256": item["sha256"], "from": before_name, "to": item["name"]})
         elif item.get("parse_status") == "ok":
             outcomes["ok"] += 1
         else:

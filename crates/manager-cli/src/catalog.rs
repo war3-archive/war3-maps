@@ -14,7 +14,7 @@ use image::ImageOutputFormat;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use war3parser::formats::wts::trigstr_id;
-use war3parser::prelude::{War3Image, War3MapW3x};
+use war3parser::prelude::{War3Image, War3MapHeader, War3MapW3x};
 
 use war3parser::modscan::{self, ModInfo};
 
@@ -49,6 +49,9 @@ struct Catalog {
 struct MapRecord {
     sha256: String,
     name: String,
+    /// Which tier of the name fallback produced `name`. The site needs this to
+    /// avoid presenting a filename or a bare hash as if it were a map title.
+    name_source: &'static str,
     author: String,
     description: String,
     recommended_players: String,
@@ -238,6 +241,7 @@ fn ingest(
     let record = MapRecord {
         sha256: sha256.clone(),
         name: derived.name,
+        name_source: derived.name_source,
         author: derived.author,
         description: derived.description,
         recommended_players: derived.recommended_players,
@@ -276,6 +280,8 @@ fn ingest(
 #[derive(Debug, Serialize)]
 pub struct Derived {
     pub name: String,
+    /// `"w3i"`, `"hm3w"`, or `"filename"` — see [`derive`].
+    pub name_source: &'static str,
     pub author: String,
     pub description: String,
     pub recommended_players: String,
@@ -327,7 +333,15 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
                     Err(error) => (Some(header), None, Some(error.to_string()), modification),
                 }
             }
-            Err(error) => (None, None, Some(error.to_string()), None),
+            // The archive is unreadable, but the `HM3W` prefix sits in
+            // plaintext ahead of it: protected maps whose hash table cannot be
+            // decrypted still surrender their name and player count here.
+            Err(error) => (
+                War3MapHeader::from_buffer(bytes).ok(),
+                None,
+                Some(error.to_string()),
+                None,
+            ),
         })) {
             Ok(parsed) => parsed,
             Err(payload) => (
@@ -343,12 +357,14 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
         .file_stem()
         .and_then(OsStr::to_str)
         .unwrap_or(filename);
+    let (name, name_source) = pick_name(
+        info.as_ref().map(|value| value.name.as_str()),
+        header.as_ref().and_then(|value| value.name.as_deref()),
+        fallback_name,
+    );
     Derived {
-        name: info
-            .as_ref()
-            .map(|value| strip_warcraft_codes(&value.name))
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| strip_warcraft_codes(fallback_name)),
+        name,
+        name_source,
         author: info
             .as_ref()
             .map(|value| strip_warcraft_codes(&value.author))
@@ -692,6 +708,28 @@ fn paths_overlap(input: &Path, output: &Path) -> bool {
     input.starts_with(&output) || output.starts_with(&input)
 }
 
+/// Resolve a map's display name, best source first, and report which tier won.
+///
+/// The `w3i` name is the authoritative one but lives inside the MPQ archive, so
+/// it is unavailable for every map whose archive fails to open. The `HM3W`
+/// prefix is plaintext and survives that, which is what keeps protected maps
+/// from falling through to a filename — and, on the content-addressed dataset,
+/// to a bare sha256 that reads as a title but is not one.
+fn pick_name(
+    info_name: Option<&str>,
+    header_name: Option<&str>,
+    fallback: &str,
+) -> (String, &'static str) {
+    for (candidate, source) in [(info_name, "w3i"), (header_name, "hm3w")] {
+        if let Some(value) = candidate.map(strip_warcraft_codes) {
+            if !value.trim().is_empty() {
+                return (value, source);
+            }
+        }
+    }
+    (strip_warcraft_codes(fallback), "filename")
+}
+
 fn strip_warcraft_codes(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut cleaned = String::with_capacity(input.len());
@@ -775,6 +813,49 @@ mod tests {
             strip_warcraft_codes("|cffff0000Red|r|nLine || Pipe"),
             "Red Line | Pipe"
         );
+    }
+
+    #[test]
+    fn prefers_w3i_name_then_hm3w_then_filename() {
+        assert_eq!(
+            pick_name(Some("W3i 名"), Some("HM3W 名"), "文件名"),
+            ("W3i 名".to_string(), "w3i")
+        );
+        // The tier that matters: no w3i, because the archive would not open.
+        assert_eq!(
+            pick_name(None, Some("|cffff0000攻守兼备TD|r"), "文件名"),
+            ("攻守兼备TD".to_string(), "hm3w")
+        );
+        assert_eq!(
+            pick_name(None, None, "文件名"),
+            ("文件名".to_string(), "filename")
+        );
+        // A blank name is not a name; fall through rather than title a map "".
+        assert_eq!(
+            pick_name(Some("   "), Some("守卫剑阁"), "文件名"),
+            ("守卫剑阁".to_string(), "hm3w")
+        );
+    }
+
+    /// A map whose MPQ archive cannot be opened at all still gets its real
+    /// title, instead of falling through to the object's sha256 filename.
+    #[test]
+    fn derives_hm3w_name_when_the_archive_is_unreadable() {
+        let mut bytes = Vec::from(*war3parser::prelude::HM3W_MAGIC);
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice("守卫剑阁-降龙伏虎".as_bytes());
+        bytes.push(0);
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.resize(512, 0);
+        bytes.extend_from_slice(&[0xAB; 1024]);
+
+        let derived = derive(&bytes, "0d1cc85dd54d538173977c37590473e7.w3x", "map");
+        assert_eq!(derived.name, "守卫剑阁-降龙伏虎");
+        assert_eq!(derived.name_source, "hm3w");
+        assert_eq!(derived.max_players, Some(8));
+        assert_eq!(derived.parse_status, "metadata_error");
+        assert!(derived.parse_error.is_some());
     }
 
     #[test]
