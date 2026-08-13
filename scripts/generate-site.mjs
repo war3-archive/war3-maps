@@ -12,6 +12,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { CLIENTS, minimumVersion, versionLabel } from "./game-version.mjs";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const catalogUrl =
   process.env.HF_CATALOG_URL ||
@@ -82,19 +84,39 @@ const collections = [...byCollection.keys()].sort(
   (a, b) => byCollection.get(b).length - byCollection.get(a).length,
 );
 
-// Card tuple: name, author, description, size, players, extension, w3i version, has cover.
-const CARD_FIELDS = ["sha256", "name", "author", "description", "size", "players", "ext", "ver", "cover"];
-const cardOf = (record) => [
-  record.sha256,
-  record.name || record.filename || "",
-  record.author || "",
-  record.description || "",
-  record.size ?? 0,
-  playersOf(record),
-  record.extension || "",
-  record.format_version ?? null,
-  record.cover_path ? 1 : 0,
+// The minimum client version a map needs is derived once here rather than in
+// the browser, so the inference rules live in one auditable place.
+const versionOf = (record) => {
+  const result = minimumVersion(record);
+  return {
+    client: CLIENTS.indexOf(result.client),
+    label: versionLabel(result),
+    evidence: result.evidence,
+  };
+};
+
+// Card tuple: name, author, description, size, players, extension, client index,
+// minimum-version label, evidence string, has cover.
+const CARD_FIELDS = [
+  "sha256", "name", "author", "description", "size", "players", "ext",
+  "client", "min_version", "version_evidence", "cover",
 ];
+const cardOf = (record) => {
+  const version = versionOf(record);
+  return [
+    record.sha256,
+    record.name || record.filename || "",
+    record.author || "",
+    record.description || "",
+    record.size ?? 0,
+    playersOf(record),
+    record.extension || "",
+    version.client,
+    version.label,
+    version.evidence,
+    record.cover_path ? 1 : 0,
+  ];
+};
 
 const overviewCollections = [];
 // Position of each map inside its (name-sorted) category, so a search result can
@@ -132,24 +154,27 @@ for (const name of collections) {
 
 // Search tuple: name, author, filename (only when it differs), collection index,
 // size, players, w3i version, extension, has cover.
-const SEARCH_FIELDS = ["sha256", "name", "author", "filename", "collection", "size", "players", "ver", "ext", "cover", "offset"];
+const SEARCH_FIELDS = ["sha256", "name", "author", "filename", "collection", "size", "players", "min_version", "ext", "client", "offset"];
 const collectionIndex = new Map(collections.map((name, index) => [name, index]));
 const searchIndex = maps
   .slice()
   .sort((a, b) => collator.compare(a.name || a.filename || "", b.name || b.filename || ""))
-  .map((record) => [
-    record.sha256,
-    record.name || record.filename || "",
-    record.author || "",
-    distinctFilename(record),
-    collectionIndex.get(collectionOf(record)) ?? 0,
-    record.size ?? 0,
-    playersOf(record),
-    record.format_version ?? null,
-    record.extension || "",
-    record.cover_path ? 1 : 0,
-    offsetOf.get(record.sha256) ?? 0,
-  ]);
+  .map((record) => {
+    const version = versionOf(record);
+    return [
+      record.sha256,
+      record.name || record.filename || "",
+      record.author || "",
+      distinctFilename(record),
+      collectionIndex.get(collectionOf(record)) ?? 0,
+      record.size ?? 0,
+      playersOf(record),
+      version.label,
+      record.extension || "",
+      version.client,
+      offsetOf.get(record.sha256) ?? 0,
+    ];
+  });
 
 await writeFile(
   path.join(dataDir, "search-index.json"),

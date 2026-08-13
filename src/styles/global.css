@@ -64,12 +64,14 @@ h1 em { color: #d5aa50; font-weight: inherit; }
 .cover { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; }
 .card-topline { display: flex; justify-content: space-between; gap: 10px; color: #c99e48; font: 600 10px/1.2 ui-monospace, monospace; text-transform: uppercase; }
 .size { color: #7f8980; }
-.name { margin: 9px 0 5px; overflow-wrap: anywhere; color: #f0f0e8; font: 650 14px/1.35 Georgia, serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.description { height: 32px; overflow: hidden; color: #9ca49a; font-size: 11px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.name { margin: 9px 0 5px; overflow-wrap: anywhere; color: #f0f0e8; font: 650 14px/1.35 Georgia, serif; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.description { height: 32px; overflow: hidden; color: #9ca49a; font-size: 11px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 .metadata { display: grid; grid-template-columns: 1.3fr .7fr .6fr .8fr; gap: 6px; margin: 10px 0; padding: 8px 0; border-block: 1px solid #303730; }
 .metadata div { min-width: 0; }
 .metadata dt { color: #6f796f; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
 .metadata dd { margin: 3px 0 0; overflow: hidden; color: #bdc3ba; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.client-badge { display: inline-flex; align-items: center; gap: 4px; }
+.client-badge svg { flex: 0 0 auto; width: 12px; height: 12px; }
 .card-actions { display: flex; gap: 6px; }
 .download { display: inline-flex; align-items: center; justify-content: center; flex: 1; min-height: 30px; padding: 6px 10px; border-radius: 3px; font-size: 12px; }
 .download[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }

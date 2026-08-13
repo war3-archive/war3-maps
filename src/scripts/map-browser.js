@@ -48,6 +48,60 @@ export async function fetchJSON(url) {
 
 export const anchorOf = (sha256) => `m-${String(sha256).slice(0, 12)}`;
 
+// Client badges. Deliberately abstract marks rather than Blizzard artwork:
+// an orb for Reign of Chaos, a frozen shard for The Frozen Throne, a shield for
+// Reforged and later.
+const CLIENT_GLYPHS = [
+  {
+    name: "混乱之治",
+    short: "RoC",
+    color: "#b8763a",
+    path: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Z",
+  },
+  {
+    name: "冰封王座",
+    short: "TFT",
+    color: "#69a8c8",
+    path: "M12 2 14.4 8.2 21 9l-4.8 4.3L17.6 21 12 17.4 6.4 21l1.4-7.7L3 9l6.6-.8Z",
+  },
+  {
+    name: "重制版",
+    short: "REF",
+    color: "#d5aa50",
+    path: "M12 2.5 20 5.4v6.2c0 4.5-3.2 8.4-8 9.9-4.8-1.5-8-5.4-8-9.9V5.4Zm0 3.4L7 7.7v4c0 2.7 1.9 5.1 5 6.3 3.1-1.2 5-3.6 5-6.3v-4Z",
+  },
+];
+
+function clientBadge(clientIndex, label, evidence) {
+  const glyph = CLIENT_GLYPHS[clientIndex] ?? CLIENT_GLYPHS[1];
+  const wrap = document.createElement("span");
+  wrap.className = "client-badge";
+  const title = [glyph.name, label ? `最低需要 ${label}` : "版本未知", evidence]
+    .filter(Boolean)
+    .join(" · ");
+  wrap.title = title;
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", glyph.path);
+  path.setAttribute("fill", glyph.color);
+  svg.append(path);
+
+  const text = document.createElement("span");
+  text.textContent = label ?? "未知";
+
+  wrap.append(svg, text);
+  // Screen readers get the client name; the glyph alone would say nothing.
+  const sr = document.createElement("span");
+  sr.className = "sr-only";
+  sr.textContent = `（${glyph.name}）`;
+  wrap.append(sr);
+  return wrap;
+}
+
 function metadataRow(term, value) {
   const group = document.createElement("div");
   const dt = document.createElement("dt");
@@ -59,9 +113,13 @@ function metadataRow(term, value) {
   return group;
 }
 
-/** Build a card from a category tuple: [sha, name, author, desc, size, players, ext, ver, cover]. */
+/**
+ * Build a card from a category tuple:
+ * [sha, name, author, desc, size, players, ext, client, minVersion, evidence, cover].
+ */
 export function buildCard(tuple, collectionName) {
-  const [sha256, name, author, description, size, players, extension, version, hasCover] = tuple;
+  const [sha256, name, author, description, size, players, extension, client, minVersion, evidence, hasCover] =
+    tuple;
   const label = name || "地图";
 
   const article = document.createElement("article");
@@ -112,11 +170,17 @@ export function buildCard(tuple, collectionName) {
 
   const metadata = document.createElement("dl");
   metadata.className = "metadata";
+  const versionCell = document.createElement("div");
+  const versionTerm = document.createElement("dt");
+  versionTerm.textContent = "最低版本";
+  const versionValue = document.createElement("dd");
+  versionValue.append(clientBadge(client, minVersion, evidence));
+  versionCell.append(versionTerm, versionValue);
   metadata.append(
     metadataRow("作者", author),
     metadataRow("玩家", players ? `${players} 人` : ""),
     metadataRow("格式", extension),
-    metadataRow("版本", version ? `w3i v${version}` : ""),
+    versionCell,
   );
 
   const actions = document.createElement("div");

@@ -19,9 +19,12 @@ const FILENAME = 3;
 const COLLECTION = 4;
 const SIZE = 5;
 const PLAYERS = 6;
-const VERSION = 7;
+const MIN_VERSION = 7;
 const EXT = 8;
+const CLIENT = 9;
 const OFFSET = 10;
+
+const CLIENT_NAMES = ["混乱之治", "冰封王座", "重制版"];
 
 const state = {
   maps: null,
@@ -48,7 +51,7 @@ async function ensureIndex() {
     normalize(
       `${entry[NAME]} ${entry[AUTHOR]} ${entry[FILENAME] || ""} ${
         index.collections[entry[COLLECTION]]?.name || ""
-      }`,
+      } ${CLIENT_NAMES[entry[CLIENT]] || ""} ${entry[MIN_VERSION] || ""}`,
     ),
   );
 }
@@ -69,7 +72,9 @@ function resultRow(entry) {
   meta.className = "result-meta";
   const parts = [entry[AUTHOR] || "未知作者", collection.name];
   if (entry[PLAYERS]) parts.push(`${entry[PLAYERS]} 人`);
-  if (entry[VERSION]) parts.push(`w3i v${entry[VERSION]}`);
+  if (entry[MIN_VERSION]) {
+    parts.push(`${CLIENT_NAMES[entry[CLIENT]] ?? ""} ${entry[MIN_VERSION]}`.trim());
+  }
   parts.push(formatBytes(entry[SIZE]));
   meta.textContent = parts.join(" · ");
   main.append(name, meta);
