@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="可搜索、可校验、支持单图下载的 Warcraft III 地图资料库。" />
+    <meta name="theme-color" content="#171c18" />
+    <title>Warcraft III 地图资料库</title>
+    <link rel="stylesheet" href="./assets/catalog.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="nav wrap" aria-label="主导航">
+        <a class="brand" href="./">WAR3 <span>MAP ARCHIVE</span></a>
+        <div class="nav-links">
+          <a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码</a>
+          <a id="dataset-link" href="#" hidden>Hugging Face 数据集</a>
+        </div>
+      </nav>
+      <div class="wrap hero-content">
+        <p class="eyebrow">COMMUNITY MAP PRESERVATION</p>
+        <h1>找图，校验，<br /><em>单独下载。</em></h1>
+        <p class="intro">每张地图单独下载、内容可校验。搜索在浏览器内完成，不上传你的查询，也不需要登录。</p>
+        <form id="search-form" class="search" role="search">
+          <label class="sr-only" for="search-input">搜索地图</label>
+          <input id="search-input" type="search" autocomplete="off" placeholder="搜索地图名、作者、分类或文件名…" />
+          <button type="submit">搜索</button>
+        </form>
+        <div class="stats" aria-live="polite">
+          <span><strong id="map-count">—</strong> 张地图</span>
+          <span><strong id="total-size">—</strong> 存档大小</span>
+          <span><strong id="updated-at">—</strong> 索引更新</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap content">
+      <section class="toolbar" aria-label="筛选和排序">
+        <div id="category-list" class="categories"></div>
+        <label class="sort">
+          <span>排序</span>
+          <select id="sort-select">
+            <option value="name">名称</option>
+            <option value="size-desc">文件大小</option>
+            <option value="players-desc">玩家人数</option>
+          </select>
+        </label>
+      </section>
+
+      <div id="notice" class="notice" role="status">正在载入地图索引…</div>
+      <section id="results" class="results" aria-label="地图搜索结果"></section>
+      <button id="load-more" class="load-more" type="button" hidden>显示更多</button>
+    </main>
+
+    <template id="map-template">
+      <article class="map-card">
+        <div class="cover-wrap">
+          <img class="cover" alt="" loading="lazy" decoding="async" />
+        </div>
+        <div class="card-topline">
+          <span class="category"></span>
+          <span class="size"></span>
+        </div>
+        <h2 class="name"></h2>
+        <p class="description"></p>
+        <dl class="metadata">
+          <div><dt>作者</dt><dd class="author"></dd></div>
+          <div><dt>玩家</dt><dd class="players"></dd></div>
+          <div><dt>格式</dt><dd class="format"></dd></div>
+          <div><dt>版本</dt><dd class="version"></dd></div>
+        </dl>
+        <div class="card-actions">
+          <a class="download" href="#">单图下载</a>
+          <button class="copy-hash" type="button">复制 SHA-256</button>
+        </div>
+      </article>
+    </template>
+
+    <footer class="wrap footer">
+      <p>地图版权归各自作者所有。本项目提供保存、检索和完整性校验。</p>
+      <p><a href="https://github.com/war3-archive/war3-maps" target="_blank" rel="noopener">源码仓库</a></p>
+    </footer>
+    <script type="module" src="./assets/catalog.js"></script>
+  </body>
+</html>

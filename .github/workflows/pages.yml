@@ -1,0 +1,58 @@
+name: Deploy map archive site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Assemble catalog site
+        env:
+          HF_DATASET_REPO: ${{ vars.HF_DATASET_REPO }}
+        run: |
+          args=(--out site-dist)
+          if [[ -n "$HF_DATASET_REPO" ]]; then
+            args+=(--hf-repo "$HF_DATASET_REPO")
+            args+=(--catalog-url "https://huggingface.co/datasets/$HF_DATASET_REPO/resolve/main/catalog/maps.json")
+          elif [[ -f catalog/maps.json ]]; then
+            args+=(--catalog catalog/maps.json)
+          fi
+          python3 deploy/build_pages.py "${args[@]}"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site-dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
