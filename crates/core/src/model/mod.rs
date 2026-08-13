@@ -9,7 +9,7 @@ mod image;
 mod metadata;
 mod snapshot;
 
-pub use header::War3MapHeader;
+pub use header::{War3MapHeader, HM3W_MAGIC};
 pub use image::{War3Image, War3ImageData};
 pub use metadata::War3MapMetadata;
 pub use snapshot::{ImportEntry, MapSnapshot, StringTableEntry};

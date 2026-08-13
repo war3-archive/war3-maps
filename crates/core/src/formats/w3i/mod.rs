@@ -141,6 +141,69 @@ pub struct War3MapW3i {
     pub random_item_tables: Vec<RandomItemTable>,
 }
 
+/// The string-delimited tail of a `w3i`: players, forces, and the optional
+/// availability/random-table sections.
+///
+/// Split out from [`War3MapW3i::parse_reader`] so it can be attempted twice
+/// against different empty-string encodings without duplicating the field list.
+struct Sections {
+    players: Vec<Player>,
+    forces: Vec<Force>,
+    skipped_optional_sections: bool,
+    upgrade_availability_changes: Vec<UpgradeAvailabilityChange>,
+    tech_availability_changes: Vec<TechAvailabilityChange>,
+    random_unit_tables: Vec<RandomUnitTable>,
+    random_item_tables: Vec<RandomItemTable>,
+}
+
+impl Sections {
+    fn parse(r: &mut ByteReader<'_>, v: FormatVersion) -> Result<Self> {
+        use FormatVersion as V;
+
+        let players = parse_counted(r, |r| Player::parse(r, v))?;
+        let forces = parse_counted(r, Force::parse)?;
+
+        // A single 0xFF byte after the forces marks the remaining sections as
+        // omitted (War3Net `_skipData`; typical of protected maps).
+        let mut skipped_optional_sections = false;
+        let mut upgrade_availability_changes = Vec::new();
+        let mut tech_availability_changes = Vec::new();
+        let mut random_unit_tables = Vec::new();
+        let mut random_item_tables = Vec::new();
+
+        if r.peek_u8() == Some(0xFF) {
+            r.skip(1)?;
+            skipped_optional_sections = true;
+        } else {
+            upgrade_availability_changes = parse_counted(r, UpgradeAvailabilityChange::parse)?;
+            // Some maps end right after the upgrade section (War3Net early-returns here).
+            if !r.is_at_end() {
+                tech_availability_changes = parse_counted(r, TechAvailabilityChange::parse)?;
+                if v >= V::V15 {
+                    random_unit_tables = parse_counted(r, RandomUnitTable::parse)?;
+                }
+                if v >= V::V24 {
+                    random_item_tables = parse_counted(r, RandomItemTable::parse)?;
+                }
+                // v26/v27 append a trailing zero int; read and ignore it.
+                if v >= V::V26 && v < V::V28 && r.remaining() >= 4 {
+                    let _ = r.i32()?;
+                }
+            }
+        }
+
+        Ok(Self {
+            players,
+            forces,
+            skipped_optional_sections,
+            upgrade_availability_changes,
+            tech_availability_changes,
+            random_unit_tables,
+            random_item_tables,
+        })
+    }
+}
+
 impl War3MapW3i {
     /// Parse a complete `war3map.w3i` buffer.
     pub fn parse(data: &[u8]) -> Result<Self> {
@@ -286,37 +349,41 @@ impl War3MapW3i {
             }
         }
 
-        let players = parse_counted(r, |r| Player::parse(r, v))?;
-        let forces = parse_counted(r, Force::parse)?;
-
-        // A single 0xFF byte after the forces marks the remaining sections as
-        // omitted (War3Net `_skipData`; typical of protected maps).
-        let mut skipped_optional_sections = false;
-        let mut upgrade_availability_changes = Vec::new();
-        let mut tech_availability_changes = Vec::new();
-        let mut random_unit_tables = Vec::new();
-        let mut random_item_tables = Vec::new();
-
-        if r.peek_u8() == Some(0xFF) {
-            r.skip(1)?;
-            skipped_optional_sections = true;
-        } else {
-            upgrade_availability_changes = parse_counted(r, UpgradeAvailabilityChange::parse)?;
-            // Some maps end right after the upgrade section (War3Net early-returns here).
-            if !r.is_at_end() {
-                tech_availability_changes = parse_counted(r, TechAvailabilityChange::parse)?;
-                if v >= V::V15 {
-                    random_unit_tables = parse_counted(r, RandomUnitTable::parse)?;
+        // Everything from here on is length-delimited by embedded strings, so a
+        // writer that mis-encodes one shifts every field after it. Parse on a
+        // clone and retry leniently rather than let that surface as a truncated
+        // file — see `Sections::parse` and `set_empty_strings_unterminated`.
+        let sections = {
+            let mut attempt = r.clone();
+            match Sections::parse(&mut attempt, v) {
+                Ok(sections) => {
+                    *r = attempt;
+                    Ok(sections)
                 }
-                if v >= V::V24 {
-                    random_item_tables = parse_counted(r, RandomItemTable::parse)?;
-                }
-                // v26/v27 append a trailing zero int; read and ignore it.
-                if v >= V::V26 && v < V::V28 && r.remaining() >= 4 {
-                    let _ = r.i32()?;
+                Err(strict_error) => {
+                    let mut attempt = r.clone();
+                    attempt.set_empty_strings_unterminated(true);
+                    match Sections::parse(&mut attempt, v) {
+                        Ok(sections) => {
+                            *r = attempt;
+                            Ok(sections)
+                        }
+                        // Report what the conformant read saw; the retry is an
+                        // accommodation, not the standard we parse against.
+                        Err(_) => Err(strict_error),
+                    }
                 }
             }
-        }
+        }?;
+        let Sections {
+            players,
+            forces,
+            skipped_optional_sections,
+            upgrade_availability_changes,
+            tech_availability_changes,
+            random_unit_tables,
+            random_item_tables,
+        } = sections;
 
         Ok(Self {
             version,

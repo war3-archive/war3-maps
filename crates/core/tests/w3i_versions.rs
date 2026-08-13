@@ -37,6 +37,12 @@ impl W3iWriter {
 /// Build a syntactically complete w3i buffer for `version` with one player
 /// and one force, following the War3Net field order.
 fn build_w3i(version: u32) -> Vec<u8> {
+    build_w3i_with(version, &["Player 1"], false)
+}
+
+/// `unterminated_empty_names` reproduces the third-party optimizer that writes
+/// an empty player name as zero bytes instead of a lone NUL.
+fn build_w3i_with(version: u32, slots: &[&str], unterminated_empty_names: bool) -> Vec<u8> {
     let v = version;
     let mut w = W3iWriter::default();
 
@@ -145,20 +151,25 @@ fn build_w3i(version: u32) -> Vec<u8> {
         }
     }
 
-    // one player
-    w.u32(1);
-    w.i32(0); // id
-    w.i32(1); // user
-    w.i32(1); // human
-    w.i32(1); // fixed start
-    w.cstr("Player 1");
-    w.f32(-1024.0);
-    w.f32(1024.0);
-    w.u32(0); // ally low
-    w.u32(0); // ally high
-    if v >= 31 {
-        w.u32(0); // enemy low
-        w.u32(0); // enemy high
+    w.u32(slots.len() as u32);
+    for (id, name) in slots.iter().enumerate() {
+        w.i32(id as i32);
+        w.i32(1); // user
+        w.i32(1); // human
+        w.i32(1); // fixed start
+        if unterminated_empty_names && name.is_empty() {
+            // The anomaly: no bytes at all, not even the terminator.
+        } else {
+            w.cstr(name);
+        }
+        w.f32(-1024.0);
+        w.f32(1024.0);
+        w.u32(0); // ally low
+        w.u32(0); // ally high
+        if v >= 31 {
+            w.u32(0); // enemy low
+            w.u32(0); // enemy high
+        }
     }
 
     // one force
@@ -375,4 +386,38 @@ fn unknown_future_version_parses_with_nearest_layout() {
     assert!(!info.version.is_known());
     assert_eq!(info.script_mode, Some(1));
     assert!(info.graphics_mode.is_none());
+}
+
+/// A third-party optimizer writes an empty player name as zero bytes instead of
+/// a lone NUL, which shifts the force count and everything after it. The
+/// conformant read fails; the retry recovers the real structure.
+#[test]
+fn recovers_from_unterminated_empty_player_names() {
+    let broken = build_w3i_with(25, &["Player 1", ""], true);
+    let info = War3MapW3i::parse(&broken).expect("lenient retry should parse");
+
+    assert_eq!(info.players.len(), 2);
+    assert_eq!(info.players[0].name, "Player 1");
+    assert_eq!(info.players[1].name, "");
+    assert_eq!(info.players[1].id, 1);
+    // The tail is only reached correctly if the player array consumed the right
+    // number of bytes, so these prove the alignment was recovered.
+    assert_eq!(info.forces.len(), 1);
+    assert_eq!(info.forces[0].name, "Force 1");
+    assert_eq!(info.upgrade_availability_changes.len(), 1);
+    assert_eq!(info.tech_availability_changes.len(), 1);
+}
+
+/// The retry must not disturb a conformant file that legitimately contains an
+/// empty player name — there the lone NUL *is* the string and must be consumed.
+#[test]
+fn conformant_empty_player_names_still_parse_strictly() {
+    let conformant = build_w3i_with(25, &["Player 1", "", "Player 3"], false);
+    let info = War3MapW3i::parse(&conformant).expect("conformant file parses");
+
+    assert_eq!(info.players.len(), 3);
+    assert_eq!(info.players[1].name, "");
+    assert_eq!(info.players[2].name, "Player 3");
+    assert_eq!(info.forces.len(), 1);
+    assert_eq!(info.upgrade_availability_changes.len(), 1);
 }

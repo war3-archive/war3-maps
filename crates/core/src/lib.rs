@@ -56,7 +56,7 @@ pub mod prelude {
     #[doc(inline)]
     pub use crate::model::{
         ImportEntry, MapSnapshot, StringTableEntry, War3Image, War3ImageData, War3MapHeader,
-        War3MapMetadata,
+        War3MapMetadata, HM3W_MAGIC,
     };
     #[doc(inline)]
     pub use crate::modscan::ModInfo;

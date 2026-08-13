@@ -7,10 +7,6 @@ use mpq::{Archive, File};
 use crate::error::{Error, Result};
 use crate::formats::{War3MapImp, War3MapMmp, War3MapW3i, War3MapWts};
 use crate::model::{War3Image, War3MapHeader};
-use crate::reader::ByteReader;
-
-/// Magic bytes of the optional map header.
-const HM3W_MAGIC: &[u8; 4] = b"HM3W";
 
 /// Candidate script file paths, in lookup order.
 const SCRIPT_PATHS: &[&str] = &[
@@ -43,31 +39,18 @@ impl War3MapW3x {
     }
 
     /// Load a map from an owned buffer.
+    ///
+    /// Fails when the embedded MPQ cannot be opened. To read the `HM3W` fields
+    /// of a map whose archive is unreadable, use [`War3MapHeader::from_buffer`]
+    /// directly — it does not depend on the archive.
     pub fn from_vec(buffer: Vec<u8>) -> Result<Self> {
-        let header = Self::parse_header(&buffer)?;
+        let header = War3MapHeader::from_buffer(&buffer)?;
         let mut archive = Archive::load(buffer)?;
         let files = Self::read_listfile(&mut archive).ok();
         Ok(Self {
             header,
             archive,
             files,
-        })
-    }
-
-    /// Parse the optional `HM3W` prefix. Protected or pre-TFT maps may be a
-    /// bare MPQ archive, which yields a default (absent) header.
-    fn parse_header(buffer: &[u8]) -> Result<War3MapHeader> {
-        let r = &mut ByteReader::new(buffer);
-        let magic: [u8; 4] = r.bytes()?;
-        if &magic != HM3W_MAGIC {
-            return Ok(War3MapHeader::default());
-        }
-        Ok(War3MapHeader {
-            has_hm3w: true,
-            u1: Some(r.u32()?),
-            name: Some(r.cstr_lossy()?),
-            flags: Some(r.u32()?),
-            max_players: Some(r.u32()?),
         })
     }
 
@@ -86,9 +69,17 @@ impl War3MapW3x {
 
     /// Open a file inside the MPQ archive.
     pub fn get(&mut self, filename: &str) -> Result<File> {
-        self.archive
-            .open_file(filename)
-            .map_err(|_| Error::FileNotFound(filename.to_string()))
+        self.archive.open_file(filename).map_err(|error| {
+            // Only a genuinely absent file is "not found". Flattening every
+            // structural failure into that message hides what is actually
+            // wrong — a corrupt block table reads as a missing `w3i`, which
+            // sends triage looking for the file rather than for the damage.
+            if error.kind() == std::io::ErrorKind::NotFound {
+                Error::FileNotFound(filename.to_string())
+            } else {
+                Error::Io(error)
+            }
+        })
     }
 
     /// Whether a file exists inside the MPQ archive.

@@ -11,12 +11,28 @@ use crate::error::{Error, Result};
 pub struct ByteReader<'a> {
     data: &'a [u8],
     pos: usize,
+    empty_strings_unterminated: bool,
 }
 
 impl<'a> ByteReader<'a> {
     /// Create a reader over `data`, positioned at the start.
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0 }
+        Self {
+            data,
+            pos: 0,
+            empty_strings_unterminated: false,
+        }
+    }
+
+    /// Read an empty string as zero bytes rather than as a lone terminator.
+    ///
+    /// Some third-party map optimizers emit nothing at all for an empty string
+    /// instead of the NUL that terminates it, which shifts every field after
+    /// it. The two encodings are locally indistinguishable — a zero byte is
+    /// either the terminator or the first byte of whatever follows — so this is
+    /// only ever a retry after the format-conformant read has already failed.
+    pub fn set_empty_strings_unterminated(&mut self, unterminated: bool) {
+        self.empty_strings_unterminated = unterminated;
     }
 
     /// Current byte offset from the start of the input.
@@ -115,6 +131,9 @@ impl<'a> ByteReader<'a> {
     /// end of input the remaining bytes are returned as the string — protected
     /// maps sometimes truncate the final field.
     pub fn cstr_lossy(&mut self) -> Result<String> {
+        if self.empty_strings_unterminated && self.peek_u8() == Some(0) {
+            return Ok(String::new());
+        }
         let rest = &self.data[self.pos..];
         match rest.iter().position(|&b| b == 0) {
             Some(nul) => {

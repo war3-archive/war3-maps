@@ -17,7 +17,7 @@ image = { workspace = true }
 image-blp = { workspace = true }
 # Renamed dependency: the fork carries fixes for archives that map protectors
 # deliberately malform, and `[patch.crates-io]` never reaches downstream crates.
-mpq = { package = "war3-mpq", version = "0.9" }
+mpq = { package = "war3-mpq", version = "0.9.3" }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
