@@ -243,8 +243,13 @@ impl Archive {
     }
 
     pub fn open_file(&mut self, filename: &str) -> Result<File, Error> {
+        if self.hash_table.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidData, "empty MPQ hash table"));
+        }
+        // The header count and the table actually read can disagree on a
+        // truncated archive; the mask has to follow the table we hold.
         let start_index =
-            (hash_string(filename, 0x0) & (self.header.hash_table_count - 1)) as usize;
+            (hash_string(filename, 0x0) & (self.hash_table.len() as u32 - 1)) as usize;
         let mut hash;
 
         let hash_a = hash_string(filename, 0x100);
@@ -255,7 +260,14 @@ impl Archive {
             hash = &self.hash_table[i];
 
             if hash.hash_a == hash_a && hash.hash_b == hash_b {
-                let block = &self.block_table[hash.block_index as usize];
+                // The block index comes straight from the archive: a protected
+                // or corrupt map can point it past the end of the block table.
+                let block = self.block_table.get(hash.block_index as usize).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        format!("MPQ hash entry for {filename:?} points outside the block table"),
+                    )
+                })?;
                 let mut sector_offsets: Vec<u32> = Vec::new();
                 let mut sector_checksums: Vec<u32> = Vec::new();
 
