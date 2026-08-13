@@ -1,7 +1,7 @@
 use bzip2_rs as bzip2;
 use implode::exploder::Exploder;
 use implode::symbol::DEFAULT_CODE_TABLE;
-use std::io::{self, Error, ErrorKind};
+use std::io::{self, Error};
 
 const COMPRESSION_HUFFMAN: u8 = 0x01;
 const COMPRESSION_ZLIB: u8 = 0x02;
@@ -27,7 +27,7 @@ pub fn decompress(data: &mut [u8], out: &mut [u8]) -> Result<usize, Error> {
 
         match zlib.decompress(&data[1..], out, flate2::FlushDecompress::None) {
             Ok(_) => {}
-            Err(e) => return Err(Error::new(ErrorKind::Other, e)),
+            Err(e) => return Err(Error::other(e)),
         }
 
         return Ok(zlib.total_out() as usize);
@@ -59,41 +59,30 @@ pub fn decompress(data: &mut [u8], out: &mut [u8]) -> Result<usize, Error> {
     }
 
     if compression_type & COMPRESSION_HUFFMAN != 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "Compression algorithm Huffman not supported",
-        ));
+        return Err(Error::other("Compression algorithm Huffman not supported"));
     }
 
     if compression_type & COMPRESSION_SPARSE != 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "Compression algorithm Sparse not supported",
-        ));
+        return Err(Error::other("Compression algorithm Sparse not supported"));
     }
 
     if compression_type & COMPRESSION_ADPCM_STEREO != 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
+        return Err(Error::other(
             "Compression algorithm ADPCM Stereo not supported",
         ));
     }
 
     if compression_type & COMPRESSION_ADPCM_MONO != 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
+        return Err(Error::other(
             "Compression algorithm ADPCM Stereo not supported",
         ));
     }
 
     if compression_type & COMPRESSION_LZMA != 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "Compression algorithm LZMA not supported",
-        ));
+        return Err(Error::other("Compression algorithm LZMA not supported"));
     }
 
-    Err(Error::new(ErrorKind::Other, "No compression type found"))
+    Err(Error::other("No compression type found"))
 }
 
 pub fn explode(data: &mut [u8], out: &mut [u8]) -> Result<usize, Error> {

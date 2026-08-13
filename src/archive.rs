@@ -304,13 +304,10 @@ impl Archive {
 
                 // file if encrypted, generate decryption key
                 if block.flags & FILE_ENCRYPTED != 0 {
-                    match filename.split(&['\\', '/'][..]).last() {
+                    match filename.split(&['\\', '/'][..]).next_back() {
                         Some(basename) => file_key = hash_string(basename, 0x300),
                         None => {
-                            return Err(Error::new(
-                                ErrorKind::Other,
-                                "Unable to extract filename from path",
-                            ));
+                            return Err(Error::other("Unable to extract filename from path"));
                         }
                     }
 
@@ -429,7 +426,7 @@ impl File {
     // read data from file
     pub fn read(&self, archive: &mut Archive, buf: &mut [u8]) -> Result<usize, Error> {
         if self.block.flags & FILE_PATCH_FILE != 0 {
-            Err(Error::new(ErrorKind::Other, "Patch file not supported"))
+            Err(Error::other("Patch file not supported"))
         } else if self.block.flags & FILE_SINGLE_UNIT != 0 {
             // file is single block file
             self.read_single_unit_file(
@@ -489,7 +486,7 @@ impl File {
                     adler.update_buffer(in_buf);
 
                     if self.sector_checksums[i] != adler.hash() {
-                        return Err(Error::new(ErrorKind::Other, "Sector checksum error"));
+                        return Err(Error::other("Sector checksum error"));
                     }
                 }
 
@@ -569,8 +566,11 @@ impl File {
             return Err(Error::new(ErrorKind::AlreadyExists, "File already exists"));
         }
 
+        // The path is known not to exist (checked above), so truncation never
+        // discards anything; stating it keeps the intent unambiguous.
         let mut file = fs::OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(&path)
             .unwrap();

@@ -29,11 +29,7 @@ jobs:
       - name: Lint
         run: |
           cargo fmt -- --check
-          # Upstream's inherited code trips lints that only exist on newer
-          # clippy (io::Error::other, Iterator::last). Denying them here would
-          # force cosmetic churn across files this fork does not otherwise
-          # touch, which makes the fork harder to offer back upstream.
-          cargo clippy
+          cargo clippy -- -D warnings
 
       - name: Test
         run: |
