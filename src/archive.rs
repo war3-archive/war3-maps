@@ -198,9 +198,8 @@ impl Archive {
         // protectors: a block count of 33410 in a 1.7 MB file makes a reader
         // that trusts it fail on a short read. Clamp both tables to what the
         // archive actually contains and read what is there.
-        let entries_after = |start: u64, entry: usize| -> u64 {
-            total.saturating_sub(start) / entry as u64
-        };
+        let entries_after =
+            |start: u64, entry: usize| -> u64 { total.saturating_sub(start) / entry as u64 };
 
         // read hash table
         let hash_start = u64::from(header.hash_table_offset) + offset;
@@ -279,18 +278,26 @@ impl Archive {
         let hash_b = hash_string(filename, 0x200);
         let mut file_key = 0;
 
-        for i in start_index..self.hash_table.len() {
+        // The hash table is probed circularly from the home bucket: an entry
+        // whose bucket is late in the table wraps around to the front, and
+        // stopping at the end silently loses those files.
+        let table_len = self.hash_table.len();
+        for probe in 0..table_len {
+            let i = (start_index + probe) % table_len;
             hash = &self.hash_table[i];
 
             if hash.hash_a == hash_a && hash.hash_b == hash_b {
                 // The block index comes straight from the archive: a protected
                 // or corrupt map can point it past the end of the block table.
-                let block = self.block_table.get(hash.block_index as usize).ok_or_else(|| {
-                    Error::new(
+                let block =
+                    self.block_table
+                        .get(hash.block_index as usize)
+                        .ok_or_else(|| {
+                            Error::new(
                         ErrorKind::InvalidData,
                         format!("MPQ hash entry for {filename:?} points outside the block table"),
                     )
-                })?;
+                        })?;
                 let mut sector_offsets: Vec<u32> = Vec::new();
                 let mut sector_checksums: Vec<u32> = Vec::new();
 
@@ -449,7 +456,10 @@ impl File {
                 let sector_size = self.sector_offsets[i + 1]
                     .checked_sub(sector_offset)
                     .ok_or_else(|| {
-                        Error::new(ErrorKind::InvalidData, "MPQ sector offsets are not monotonic")
+                        Error::new(
+                            ErrorKind::InvalidData,
+                            "MPQ sector offsets are not monotonic",
+                        )
                     })?;
                 if sector_size as usize > buff.len() || read > out.len() {
                     return Err(Error::new(
