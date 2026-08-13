@@ -42,8 +42,28 @@ Shared API types (`MapSnapshot`, `War3ImageData`, `ImportEntry`, `StringTableEnt
 - Parse **w3i** map info across versions **8 → 33** (RoC betas, ROC, TFT, 1.31+, Reforged, WC3 2.0)
 - Parse **wts** string tables (comment lines, `\n` / `\r\n`, BOM)
 - Parse **imp** imports, minimap/preview **BLP/TGA** images
-- Handle protected / headerless maps (no `HM3W`, truncated optional w3i sections, missing listfile)
+- Handle protected / headerless maps (no `HM3W`, truncated optional w3i sections, missing listfile,
+  inflated MPQ table counts, hash entries that wrap around the table)
+- Detect known third-party script modifications (`war3parser::modscan`)
 - WASM bindings + browser playground
+
+### MPQ reader
+
+The `mpq` dependency is patched to [war3-archive/mpq-rust](https://github.com/war3-archive/mpq-rust).
+Upstream 0.8.1 trusts values that come straight out of the archive — block-table
+indices, per-sector offsets, table counts — which map protectors deliberately
+falsify, and it stops probing the hash table at the end instead of wrapping
+around, so some files are unreachable by name. Each fix is a separate commit in
+the fork.
+
+### Modification detection
+
+`modscan` recognises injected cheat scripts from literals the injector cannot
+remove, and reports how the injected menu is triggered in game. It needs only
+the map at hand — no unmodified copy to diff against. `parse_map` exposes it as
+`modification`; `dump-metadata` writes `modification.json`. A `None` result
+means "no known signature matched", not "clean": a protected map whose script
+cannot be read looks the same.
 
 ## Usage
 

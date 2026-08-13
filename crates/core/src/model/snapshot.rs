@@ -8,6 +8,7 @@ use crate::formats::mmp::MinimapIcon;
 use crate::formats::w3i::War3MapW3i;
 use crate::formats::wts::War3MapWts;
 use crate::model::{header::War3MapHeader, image::War3ImageData};
+use crate::modscan::ModInfo;
 
 /// Single import path as exposed to CLI/WASM consumers.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -43,6 +44,14 @@ pub struct MapSnapshot {
     pub imports: Option<Vec<ImportEntry>>,
     pub strings: Option<Vec<StringTableEntry>>,
     pub files: Option<Vec<String>>,
+    /// Third-party modification found in the map script, when one is
+    /// recognised. `None` also covers "script unreadable", so it is not a
+    /// clean bill of health.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub modification: Option<ModInfo>,
     /// Wall-clock milliseconds spent parsing (filled by WASM; `None` natively).
     #[cfg_attr(
         feature = "serde",
@@ -117,6 +126,9 @@ impl MapSnapshot {
             }
             if !self.images.is_empty() {
                 write_json(&out_dir.join("images.json"), &self.images)?;
+            }
+            if let Some(modification) = &self.modification {
+                write_json(&out_dir.join("modification.json"), modification)?;
             }
             Ok(())
         }

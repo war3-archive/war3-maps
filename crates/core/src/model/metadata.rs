@@ -11,6 +11,7 @@ use crate::formats::wts::{trigstr_id, War3MapWts};
 use crate::model::{
     header::War3MapHeader, image::War3Image, image::War3ImageData, snapshot::MapSnapshot,
 };
+use crate::modscan::{self, ModInfo};
 
 /// Placeholder for TRIGSTR references that are missing from the string table.
 const UNRESOLVED_TRIGSTR: &str = "Unknown";
@@ -28,6 +29,8 @@ pub struct War3MapMetadata {
     /// Minimap icons from `war3map.mmp` (gold mines, houses, starts).
     pub minimap_icons: Option<War3MapMmp>,
     pub files: Option<Vec<String>>,
+    /// Third-party modification detected in the map script, if any.
+    pub modification: Option<ModInfo>,
 }
 
 impl War3MapMetadata {
@@ -70,6 +73,7 @@ impl War3MapMetadata {
             images,
             minimap_icons: w3x.read_minimap_icons().ok(),
             files,
+            modification: modscan::detect(&mut w3x),
         })
     }
 
@@ -116,6 +120,7 @@ impl War3MapMetadata {
             imports: self.imp.as_ref().map(War3MapImp::entries_sorted),
             strings: self.wts.as_ref().map(War3MapWts::entries_sorted),
             files: self.files.clone(),
+            modification: self.modification.clone(),
             parse_ms: None,
         })
     }

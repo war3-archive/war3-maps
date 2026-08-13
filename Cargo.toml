@@ -34,3 +34,11 @@ serde-wasm-bindgen = "0.6.5"
 
 # Path aliases for workspace crates
 war3parser = { path = "crates/core", version = "0.4.0" }
+
+[patch.crates-io]
+# Our fork of mpq 0.8.1. Upstream trusts values that come straight out of the
+# archive — block-table indices, per-sector offsets, table counts — so a
+# protected map aborts the parse, and its hash-table probing stops at the end of
+# the table instead of wrapping, which hides files from lookup entirely.
+# See https://github.com/war3-archive/mpq-rust for the individual fixes.
+mpq = { git = "https://github.com/war3-archive/mpq-rust", branch = "master" }

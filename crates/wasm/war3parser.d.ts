@@ -212,8 +212,29 @@ export interface War3MapMetadata {
   imports: ImportEntry[] | null;
   strings: StringTableEntry[] | null;
   files: string[] | null;
+  /**
+   * Third-party modification found in the map script, when one is recognised.
+   * Absent also covers "script unreadable", so it is not a clean bill of health.
+   */
+  modification?: ModInfo | null;
   /** Wall-clock milliseconds spent parsing (set by the WASM binding). */
   parse_ms: number | null;
+}
+
+/** A modification recognised inside a map script (Rust: `ModInfo`). */
+export interface ModInfo {
+  /** Stable identifier of the tool, e.g. `"hke"`. */
+  tool: string;
+  /** Human-readable name. */
+  label: string;
+  /** Build string taken from the injected banner, when recognised. */
+  variant?: string | null;
+  /** How a player triggers the injected menu, in the tool's own terms. */
+  activation: string[];
+  /** Which literals matched, so a result can be audited without a rescan. */
+  evidence: string[];
+  /** Where the tool documents itself. */
+  reference: string;
 }
 
 /** Alias matching the Rust type name. */
