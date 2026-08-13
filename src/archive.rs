@@ -133,6 +133,26 @@ impl Block {
     }
 }
 
+/// Absolute position of a table whose offset is stored relative to the header.
+///
+/// Some protectors store that offset as a negative 32-bit value, so following
+/// it in 64-bit arithmetic lands past the end of the file while Storm — which
+/// adds in 32 bits — wraps back into the archive. Mirror the wrap, but only
+/// once the straightforward reading has already fallen outside, so a healthy
+/// archive is never resolved by anything but its own header.
+fn table_start(header_offset: u64, table_offset: u32, total: u64) -> u64 {
+    let plain = header_offset + u64::from(table_offset);
+    if plain < total {
+        return plain;
+    }
+    let wrapped = u64::from((header_offset as u32).wrapping_add(table_offset));
+    if wrapped < total {
+        wrapped
+    } else {
+        plain
+    }
+}
+
 pub struct Archive {
     file: Cursor<Vec<u8>>,
     header: Header,
@@ -203,7 +223,7 @@ impl Archive {
             |start: u64, entry: usize| -> u64 { total.saturating_sub(start) / entry as u64 };
 
         // read hash table
-        let hash_start = u64::from(header.hash_table_offset) + offset;
+        let hash_start = table_start(offset, header.hash_table_offset, total);
         let hash_room = entries_after(hash_start, mem::size_of::<Hash>());
         if hash_room == 0 {
             return Err(Error::new(
@@ -234,7 +254,7 @@ impl Archive {
         }
 
         // read block table
-        let block_start = u64::from(header.block_table_offset) + offset;
+        let block_start = table_start(offset, header.block_table_offset, total);
         let block_room = entries_after(block_start, mem::size_of::<Block>());
         let block_count = header.block_table_count.min(block_room as u32);
         let mut block_buff: Vec<u8> = vec![0; (block_count as usize) * mem::size_of::<Block>()];
@@ -299,6 +319,28 @@ impl Archive {
                         format!("MPQ hash entry for {filename:?} points outside the block table"),
                     )
                         })?;
+
+                // A block entry whose data does not fit inside the archive is
+                // not a file we can read, and its flags are not worth
+                // interpreting either — protectors overwrite whole block tables
+                // with noise, where a random bit lands on FILE_PATCH_FILE or
+                // FILE_ENCRYPTED and produces an error describing the wrong
+                // problem. Say what is actually wrong instead.
+                // Only `packed_size` is on disk; `unpacked_size` is what the
+                // data expands to and is routinely far larger.
+                let total = self.file.get_ref().len() as u64;
+                let data_end = self.offset + u64::from(block.offset) + u64::from(block.packed_size);
+                if data_end > total {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "MPQ block entry for {filename:?} lies outside the archive \
+                             (offset {}, packed {} bytes, archive {total} bytes)",
+                            block.offset, block.packed_size,
+                        ),
+                    ));
+                }
+
                 let mut sector_offsets: Vec<u32> = Vec::new();
                 let mut sector_checksums: Vec<u32> = Vec::new();
 
