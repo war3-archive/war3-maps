@@ -49,12 +49,21 @@ Shared API types (`MapSnapshot`, `War3ImageData`, `ImportEntry`, `StringTableEnt
 
 ### MPQ reader
 
-The `mpq` dependency is patched to [war3-archive/mpq-rust](https://github.com/war3-archive/mpq-rust).
-Upstream 0.8.1 trusts values that come straight out of the archive — block-table
-indices, per-sector offsets, table counts — which map protectors deliberately
-falsify, and it stops probing the hash table at the end instead of wrapping
-around, so some files are unreachable by name. Each fix is a separate commit in
-the fork.
+MPQ reading comes from [`war3-mpq`](https://crates.io/crates/war3-mpq), a fork of
+`mpq` 0.8.1. Upstream trusts values that come straight out of the archive —
+block-table indices, per-sector offsets, table counts — which map protectors
+deliberately falsify, and it stops probing the hash table at the end instead of
+wrapping around, so some files are unreachable by name. Over a 10365-map archive
+the fixes took readable maps from 9218 to 9746.
+
+It is pulled in under the name `mpq`, so the source reads the same:
+
+```toml
+mpq = { package = "war3-mpq", version = "0.9" }
+```
+
+A `[patch.crates-io]` would have been invisible to anyone installing this crate
+from the registry — Cargo only honours `[patch]` from the final workspace root.
 
 ### Modification detection
 

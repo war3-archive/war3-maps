@@ -15,7 +15,9 @@ readme = "../../README.md"
 base64 = "0.22.1"
 image = { workspace = true }
 image-blp = { workspace = true }
-mpq = "0.8.0"
+# Renamed dependency: the fork carries fixes for archives that map protectors
+# deliberately malform, and `[patch.crates-io]` never reaches downstream crates.
+mpq = { package = "war3-mpq", version = "0.9" }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }

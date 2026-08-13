@@ -435,19 +435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mpq"
-version = "0.8.1"
-source = "git+https://github.com/war3-archive/mpq-rust?branch=master#e53e48d2d75665055a8e08dca43ae8853d743da5"
-dependencies = [
- "adler32",
- "byteorder",
- "bzip2-rs",
- "flate2",
- "getopts",
- "implode",
-]
-
-[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -742,21 +729,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "war3-mpq"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e44f1342ce4cac3b84e773800b73f25058fdd0fd8b567fb250b565d3c52efa"
+dependencies = [
+ "adler32",
+ "byteorder",
+ "bzip2-rs",
+ "flate2",
+ "getopts",
+ "implode",
+]
+
+[[package]]
 name = "war3parser"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64",
  "image",
  "image-blp",
- "mpq",
  "serde",
  "serde_json",
  "thiserror 2.0.11",
+ "war3-mpq",
 ]
 
 [[package]]
 name = "war3parser-cli"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -765,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "war3parser-wasm"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "js-sys",
  "serde",
