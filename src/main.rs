@@ -1,4 +1,4 @@
-use mpq::Archive;
+use war3_mpq::Archive;
 use std::env;
 use std::io::{self, Write};
 use std::process;

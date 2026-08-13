@@ -1,18 +1,22 @@
 [package]
-name = "mpq"
-version = "0.8.1"
-authors = ["Michael Sierks <msierks117@gmail.com>"]
+name = "war3-mpq"
+version = "0.9.0"
+authors = [
+    "Michael Sierks <msierks117@gmail.com>",
+    "wesleyel",
+]
 license = "MIT/Apache-2.0"
-description = "A library for reading MPQ archives"
-documentation = "https://docs.rs/mpq"
-repository = "https://github.com/msierks/mpq-rust"
+description = "Read MPQ archives, hardened against protected Warcraft III maps (fork of mpq 0.8.1)"
+documentation = "https://docs.rs/war3-mpq"
+repository = "https://github.com/war3-archive/mpq-rust"
 readme = "README.md"
-keywords = ["mpq", "archive"]
+keywords = ["mpq", "archive", "warcraft3"]
+categories = ["parser-implementations"]
 include = ["src/*", "Cargo.toml", "LICENSE", "README.md"]
 edition = "2018"
 
 [[bin]]
-name = "mpq"
+name = "war3-mpq"
 doc = false
 
 [dependencies]

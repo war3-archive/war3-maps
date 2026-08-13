@@ -1,12 +1,40 @@
-# mpq-rust [![Documentation](https://docs.rs/mpq/badge.svg)](https://docs.rs/mpq)
+# war3-mpq
 
-A library for reading MPQ archives.
+Fork of [mpq](https://crates.io/crates/mpq) 0.8.1 by Michael Sierks, hardened for
+reading **protected Warcraft III maps**. Upstream trusts values that come straight
+out of the archive; map protectors falsify exactly those, so a reader that
+believes them panics, over-allocates, or declares a perfectly good archive
+invalid.
+
+Fixes in this fork, each a separate commit:
+
+| Fix | Upstream behaviour |
+|---|---|
+| Bounds-checked hash lookups | A hash entry's block index is used unchecked, so a crafted entry panics |
+| Table counts clamped to the file | A 1.7 MB map declaring 33410 block entries fails on a short read |
+| Validated sector offsets | Sector offsets may decrease or exceed the sector size, panicking the slice |
+| Circular hash probing | Probing stops at the end of the table instead of wrapping, hiding files |
+| Short-buffer decrypt guard | `data.len() - 3` underflows on buffers under four bytes |
+| Fallback past bogus user data headers | A fake user data header points nowhere and aborts the open |
+
+Over a 10365-map archive these took readable maps from 9218 to 9746.
+
+The API is unchanged from upstream, so `use mpq::…` keeps working through a
+renamed dependency:
 
 ```toml
-# Cargo.toml
 [dependencies]
-mpq = "0.8"
+mpq = { package = "war3-mpq", version = "0.9" }
 ```
+
+Upstream is unmaintained as of this writing; the fixes are offered back if it
+ever resumes. Licensed MIT/Apache-2.0, same as upstream.
+
+---
+
+## Upstream README
+
+A library for reading MPQ archives.
 
 ## Reading an archive
 
