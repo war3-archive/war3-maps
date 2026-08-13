@@ -37,6 +37,7 @@ pub mod archive;
 pub mod error;
 pub mod formats;
 pub mod model;
+pub mod modscan;
 pub mod reader;
 
 /// The most commonly used types in one import.
@@ -57,6 +58,8 @@ pub mod prelude {
         ImportEntry, MapSnapshot, StringTableEntry, War3Image, War3ImageData, War3MapHeader,
         War3MapMetadata,
     };
+    #[doc(inline)]
+    pub use crate::modscan::ModInfo;
 }
 
 #[doc(inline)]
@@ -67,4 +70,5 @@ pub use crate::{
         ImportEntry, MapSnapshot, StringTableEntry, War3Image, War3ImageData, War3MapHeader,
         War3MapMetadata,
     },
+    modscan::ModInfo,
 };

@@ -437,8 +437,7 @@ dependencies = [
 [[package]]
 name = "mpq"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e21720ed3c97c92f6cd971820e1dac7ec417c158db74ef0f22469041f681c4ac"
+source = "git+https://github.com/war3-archive/mpq-rust?branch=master#e53e48d2d75665055a8e08dca43ae8853d743da5"
 dependencies = [
  "adler32",
  "byteorder",
