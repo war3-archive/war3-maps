@@ -18,10 +18,7 @@ impl Chain {
     }
 
     pub fn add<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
-        match Archive::open(path) {
-            Ok(v) => self.chain.insert(0, v),
-            Err(e) => return Err(e),
-        }
+        self.chain.insert(0, Archive::open(path)?);
 
         Ok(())
     }
