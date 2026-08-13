@@ -5,7 +5,7 @@
 // search deep link (?i=<offset>) start at the shard holding that map instead of
 // rendering everything ahead of it.
 
-import { BASE, PAGE_SIZE, SHARD_SIZE, attachCopyHash, buildCard, fetchJSON } from "./map-browser.js";
+import { BASE, PAGE_SIZE, SHARD_SIZE, attachDetail, buildCard, fetchJSON } from "./map-browser.js";
 
 const results = document.querySelector("#results");
 const notice = document.querySelector("#notice");
@@ -66,7 +66,7 @@ function markEntryPoint() {
   results.before(back);
 }
 
-attachCopyHash(results);
+attachDetail(results);
 more.addEventListener("click", () => {
   more.disabled = true;
   renderMore().finally(() => {

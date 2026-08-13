@@ -196,30 +196,48 @@ export function buildCard(tuple, collectionName) {
     download.setAttribute("aria-disabled", "true");
     download.textContent = "暂不可下载";
   }
-  const copyHash = document.createElement("button");
-  copyHash.type = "button";
-  copyHash.className = "copy-hash";
-  copyHash.dataset.sha = sha256;
-  copyHash.textContent = "复制 SHA-256";
-  actions.append(download, copyHash);
+  const detail = document.createElement("button");
+  detail.type = "button";
+  detail.className = "copy-hash detail-button";
+  detail.textContent = "查看详情";
+  // The dialog needs more than the card shows, so hand it the whole record
+  // rather than re-deriving it from the DOM.
+  detail.__map = {
+    sha256,
+    name,
+    author,
+    description,
+    size,
+    players,
+    extension,
+    collection: collectionName,
+    minVersion,
+    evidence,
+    clientName: CLIENT_GLYPHS[client]?.name ?? "",
+    hasCover: Boolean(hasCover),
+  };
+  actions.append(download, detail);
 
   article.append(coverWrap, top, heading, summary, metadata, actions);
   return article;
 }
 
-/** Delegated handler for the copy-hash buttons inside a results container. */
-export function attachCopyHash(container) {
+/**
+ * Delegated handler for the per-card detail buttons.
+ *
+ * The inspector pulls in a 1.6 MB WASM parser, so its module is imported on the
+ * first click rather than on page load.
+ */
+export function attachDetail(container) {
   container.addEventListener("click", async (event) => {
-    const button = event.target.closest(".copy-hash");
-    if (!button) return;
+    const button = event.target.closest(".detail-button");
+    if (!button || !button.__map) return;
+    button.disabled = true;
     try {
-      await navigator.clipboard.writeText(button.dataset.sha || "");
-      button.textContent = "已复制";
-    } catch {
-      button.textContent = "复制失败";
+      const { openDetail } = await import("./map-detail.js");
+      openDetail(button.__map);
+    } finally {
+      button.disabled = false;
     }
-    setTimeout(() => {
-      button.textContent = "复制 SHA-256";
-    }, 1400);
   });
 }
