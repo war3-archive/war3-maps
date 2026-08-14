@@ -1,15 +1,15 @@
 ---
 const base = import.meta.env.BASE_URL;
 const REPO = "https://github.com/war3-archive/war3-maps";
-// The parser playground: same war3parser build this site runs in the detail
-// dialog, but as a drop-anything-in scratchpad.
-const PLAYGROUND = "https://wesleyel.github.io/war3parser/";
+// The map inspector: same war3parser build the detail dialog runs, as a
+// drop-anything-in scratchpad. It is a page of this site now.
+const PARSE = `${base}parse`;
 ---
 
 <nav class="nav wrap" aria-label="主导航">
   <a class="brand" href={base}>WAR3 <span>MAP ARCHIVE</span></a>
   <div class="nav-links">
-    <a href={PLAYGROUND} target="_blank" rel="noopener">地图解析</a>
+    <a href={PARSE}>地图解析</a>
     <a class="nav-icon" href={REPO} target="_blank" rel="noopener" aria-label="在 GitHub 上查看源码" title="GitHub">
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
         <path

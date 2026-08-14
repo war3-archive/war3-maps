@@ -4,12 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "scripts/**"
-      - "public/**"
-      - "package.json"
-      - "package-lock.json"
-      - "astro.config.mjs"
+      - "web/war3-archive/**"
       - ".github/workflows/pages.yml"
   # Covers and objects live in the dataset, so a catalog refresh is the only
   # reason the published site changes without a code change.
@@ -42,11 +37,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: web/war3-archive/package-lock.json
 
       - name: Build site
         env:
           HF_DATASET_REPO: ${{ vars.HF_DATASET_REPO }}
           HF_CATALOG_URL: ${{ vars.HF_DATASET_REPO != '' && format('https://huggingface.co/datasets/{0}/resolve/main/catalog/maps.json', vars.HF_DATASET_REPO) || 'https://huggingface.co/datasets/magicwenli/war3-maps/resolve/main/catalog/maps.json' }}
+        working-directory: web/war3-archive
         run: |
           npm ci
           npm run build
@@ -54,7 +51,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: web/war3-archive/dist
 
   deploy:
     needs: build
