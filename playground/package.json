@@ -1,7 +1,7 @@
 {
   "name": "war3parser-playground",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
