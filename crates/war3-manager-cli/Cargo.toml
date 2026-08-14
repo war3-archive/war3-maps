@@ -8,6 +8,10 @@ repository.workspace = true
 keywords = ["warcraft3", "archive", "catalog"]
 categories = ["command-line-utilities"]
 license.workspace = true
+# The dataset tooling is run from this repository, never depended on. Keeping it
+# off crates.io is what it has always done; cargo-release would publish it
+# otherwise.
+publish = false
 readme = "../../docs/MANAGER.md"
 
 [[bin]]
