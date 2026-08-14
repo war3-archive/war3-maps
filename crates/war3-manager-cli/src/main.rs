@@ -217,7 +217,14 @@ fn rescan_one(path: &Path, root: &Path, force_covers: bool) -> Option<RescanReco
     } else {
         "map"
     };
-    let bytes = std::fs::read(path).ok()?;
+    // A campaign's metadata is not parsed and no cover is taken from one, so
+    // `derive` never looks at its bytes. Reading a 596 MB .w3n into memory to
+    // drop it unread is what ran a parallel rescan out of memory.
+    let bytes = if content_type == "campaign" {
+        Vec::new()
+    } else {
+        std::fs::read(path).ok()?
+    };
 
     let derived = catalog::derive(&bytes, filename, content_type);
 
