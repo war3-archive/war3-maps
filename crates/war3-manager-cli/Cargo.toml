@@ -8,7 +8,7 @@ repository.workspace = true
 keywords = ["warcraft3", "archive", "catalog"]
 categories = ["command-line-utilities"]
 license.workspace = true
-readme = "README.md"
+readme = "../../docs/MANAGER.md"
 
 [[bin]]
 name = "war3-manager"

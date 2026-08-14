@@ -4,7 +4,6 @@
 
 - [打开地图搜索网站](https://war3-archive.github.io/war3-maps/)
 - [浏览数据仓库](https://huggingface.co/datasets/magicwenli/war3-maps)
-- [解析与管理工具](https://github.com/war3-archive/war3-manager)
 
 ## 收录范围
 
@@ -17,6 +16,22 @@
 ## 致谢
 
 特别感谢哔哩哔哩 UP 主 [关先生丶的游戏实况](https://space.bilibili.com/2534568)，本库相当一部分经典老图来自他的整理与分享。
+
+## 仓库结构
+
+网站、解析工具链和数据管线都在这个仓库里，五个 crate 共用一个版本号，由 `cargo release` 统一推进。
+
+| 目录 | 内容 | 文档 |
+|---|---|---|
+| `crates/war3-mpq` | MPQ 读取，针对被保护的地图加固 | [docs/MPQ.md](docs/MPQ.md)、[docs/PROTECTED_MAPS.md](docs/PROTECTED_MAPS.md) |
+| `crates/war3parser` | 地图格式解析（w3i/wts/blp…），另发 npm wasm 包 | [docs/PARSER.md](docs/PARSER.md) |
+| `crates/war3parser-cli` | 解析器命令行 | [docs/PARSER.md](docs/PARSER.md) |
+| `crates/war3parser-wasm` | wasm 绑定，站点在浏览器里解析地图用 | [docs/PARSER.md](docs/PARSER.md) |
+| `crates/war3-manager-cli` | 编目、数据集与发布流程 | [docs/MANAGER.md](docs/MANAGER.md)、[docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| `src`、`public`、`scripts` | Astro 站点 | — |
+| `deploy` | 数据集导出与 Hugging Face 同步 | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+
+常用命令见 `just --list`：`just test`、`just rescan <dataset>`、`just release <level>`。
 
 ## 权利与下架
 

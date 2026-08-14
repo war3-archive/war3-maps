@@ -9,7 +9,8 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@wesleyel/war3parser": "^0.5.3",
+    "@wesleyel/war3parser": "^0.10.0",
     "astro": "^5.0.0"
-  }
+  },
+  "version": "0.10.0"
 }

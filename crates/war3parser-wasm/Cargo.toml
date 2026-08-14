@@ -9,7 +9,7 @@ repository.workspace = true
 keywords = ["warcraft3", "MPQ", "parser"]
 categories = ["wasm"]
 license.workspace = true
-readme = "../war3parser/README.md"
+readme = "../../docs/PARSER.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,0 +1,142 @@
+# Crates go to crates.io from `cargo release` on a developer machine; the tag it
+# pushes lands here for the two artefacts that need a runner — the cross-built
+# CLI and the npm wasm package.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*" # v0.10.0, v0.11.0, …
+
+env:
+  BIN: war3parser-cli
+
+jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            rustflags: "-Ctarget-feature=+crt-static"
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Query version number
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Install C cross tooling (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang gcc-aarch64-linux-gnu musl-tools
+
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          args: "--locked --release"
+          working-directory: crates/war3parser-cli
+
+      - name: Package tarball
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          pkg="${BIN}-${version}-${{ matrix.target }}"
+          mkdir -p "artifacts/$pkg"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp "target/${{ matrix.target }}/release/${BIN}.exe" "artifacts/$pkg/"
+          else
+            cp "target/${{ matrix.target }}/release/${BIN}" "artifacts/$pkg/"
+          fi
+          cp docs/PARSER.md LICENSE "artifacts/$pkg/"
+          tar -czf "artifacts/$pkg.tar.gz" -C artifacts "$pkg"
+          rm -r "artifacts/$pkg"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: artifacts/*.tar.gz
+
+  release-cli:
+    name: GitHub release
+    needs: build-cli
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all tarballs
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.tar.gz
+          generate_release_notes: true
+
+  release-npm:
+    name: Publish to npm
+    needs: test
+    runs-on: ubuntu-latest
+    # npm Trusted Publishing (OIDC): no NPM_TOKEN secret; trust is configured
+    # on npmjs.com (package settings → Trusted Publisher → GitHub Actions,
+    # repository war3-archive/war3-maps, workflow release.yml).
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Build WASM package
+        run: |
+          rm -rf dist && mkdir -p dist
+          wasm-pack build crates/war3parser-wasm --out-name war3parser --target web --out-dir ../../dist --scope wesleyel
+          cp crates/war3parser-wasm/war3parser.d.ts dist/war3parser.d.ts
+          node -e "const fs=require('fs');const p='dist/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.name='@wesleyel/war3parser';j.types='war3parser.d.ts';fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')"
+
+      - name: Publish via OIDC trusted publishing
+        working-directory: dist
+        run: npm publish --access public

@@ -9,10 +9,10 @@ license = "MIT/Apache-2.0"
 description = "Read MPQ archives, hardened against protected Warcraft III maps (fork of mpq 0.8.1)"
 documentation = "https://docs.rs/war3-mpq"
 repository.workspace = true
-readme = "README.md"
+readme = "../../docs/MPQ.md"
 keywords = ["mpq", "archive", "warcraft3"]
 categories = ["parser-implementations"]
-include = ["src/*", "Cargo.toml", "LICENSE", "README.md"]
+include = ["src/*", "Cargo.toml", "LICENSE-MIT", "LICENSE-APACHE"]
 edition = "2018"
 
 [[bin]]

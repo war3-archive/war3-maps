@@ -9,7 +9,7 @@ repository.workspace = true
 keywords = ["warcraft3", "MPQ", "parser"]
 categories = ["command-line-utilities"]
 license.workspace = true
-readme = "../war3parser/README.md"
+readme = "../../docs/PARSER.md"
 
 [dependencies]
 war3parser = { workspace = true, features = ["serde"] }
