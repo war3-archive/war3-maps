@@ -13,8 +13,9 @@ use base64::{engine::general_purpose, Engine as _};
 use image::ImageOutputFormat;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use war3parser::carve;
 use war3parser::formats::wts::trigstr_id;
-use war3parser::prelude::{War3Image, War3MapHeader, War3MapW3x};
+use war3parser::prelude::{War3Image, War3MapHeader, War3MapW3i, War3MapW3x};
 
 use war3parser::modscan::{self, ModInfo};
 
@@ -299,16 +300,43 @@ pub struct Derived {
     pub modification: Option<ModInfo>,
 }
 
+/// Raw result of the parsing pass, before it is flattened into a [`Derived`]
+/// record.
+struct Parsed {
+    header: Option<War3MapHeader>,
+    info: Option<War3MapW3i>,
+    /// `info` was carved out of sector data rather than read by name, so it is
+    /// a salvage guess rather than an authoritative read.
+    carved: bool,
+    parse_error: Option<String>,
+    modification: Option<ModInfo>,
+}
+
+impl Parsed {
+    /// Nothing was readable; `message` explains why.
+    fn failed(message: &str) -> Self {
+        Self {
+            header: None,
+            info: None,
+            carved: false,
+            parse_error: Some(message.to_string()),
+            modification: None,
+        }
+    }
+}
+
 /// Read a map's metadata. Never panics: a malformed archive becomes a record
-/// with `parse_status: "metadata_error"` and the filename as its name.
+/// with `parse_status: "metadata_error"` (or `"carved"` if a `w3i` could still
+/// be recovered from sector data) rather than aborting the rest of the catalog.
 pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
-    let (header, info, parse_error, modification) = if content_type == "campaign" {
-        (
-            None,
-            None,
-            Some("campaign metadata parsing is not supported yet; indexed by filename".to_string()),
-            None,
-        )
+    let Parsed {
+        header,
+        info,
+        carved,
+        parse_error,
+        modification,
+    } = if content_type == "campaign" {
+        Parsed::failed("campaign metadata parsing is not supported yet; indexed by filename")
     } else {
         match catch_unwind(AssertUnwindSafe(|| match War3MapW3x::from_buffer(bytes) {
             Ok(mut archive) => {
@@ -328,28 +356,42 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
                                 }
                             });
                         }
-                        (Some(header), Some(info), None, modification)
+                        Parsed {
+                            header: Some(header),
+                            info: Some(info),
+                            carved: false,
+                            parse_error: None,
+                            modification,
+                        }
                     }
-                    Err(error) => (Some(header), None, Some(error.to_string()), modification),
+                    // The archive opened, but the tables do not resolve
+                    // `war3map.w3i`. Protected maps often leave the sector
+                    // payload intact, so carve it out of the raw file.
+                    Err(error) => Parsed {
+                        header: Some(header),
+                        info: salvage_w3i(bytes),
+                        carved: true,
+                        parse_error: Some(error.to_string()),
+                        modification,
+                    },
                 }
             }
-            // The archive is unreadable, but the `HM3W` prefix sits in
-            // plaintext ahead of it: protected maps whose hash table cannot be
-            // decrypted still surrender their name and player count here.
-            Err(error) => (
-                War3MapHeader::from_buffer(bytes).ok(),
-                None,
-                Some(error.to_string()),
-                None,
-            ),
+            // The archive is unreadable, so nothing can be found by name. Two
+            // things survive that anyway: the `HM3W` prefix sits in plaintext
+            // ahead of the MPQ, and the sector data is usually intact even when
+            // the tables are noise, which lets the `w3i` be carved out whole.
+            Err(error) => Parsed {
+                header: War3MapHeader::from_buffer(bytes).ok(),
+                info: salvage_w3i(bytes),
+                carved: true,
+                parse_error: Some(error.to_string()),
+                modification: None,
+            },
         })) {
             Ok(parsed) => parsed,
-            Err(payload) => (
-                None,
-                None,
-                Some(format!("parser panic: {}", panic_payload_message(payload))),
-                None,
-            ),
+            Err(payload) => {
+                Parsed::failed(&format!("parser panic: {}", panic_payload_message(payload)))
+            }
         }
     };
 
@@ -357,26 +399,22 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
         .file_stem()
         .and_then(OsStr::to_str)
         .unwrap_or(filename);
+    let info_name = info.as_ref().map(|value| value.name.as_str());
     let (name, name_source) = pick_name(
-        info.as_ref().map(|value| value.name.as_str()),
+        info_name.filter(|_| !carved),
         header.as_ref().and_then(|value| value.name.as_deref()),
+        info_name.filter(|_| carved),
         fallback_name,
     );
     Derived {
         name,
         name_source,
-        author: info
-            .as_ref()
-            .map(|value| strip_warcraft_codes(&value.author))
-            .unwrap_or_default(),
-        description: info
-            .as_ref()
-            .map(|value| strip_warcraft_codes(&value.description))
-            .unwrap_or_default(),
-        recommended_players: info
-            .as_ref()
-            .map(|value| strip_warcraft_codes(&value.recommended_players))
-            .unwrap_or_default(),
+        author: display_text(info.as_ref().map(|value| value.author.as_str())),
+        description: display_text(info.as_ref().map(|value| value.description.as_str())),
+        recommended_players: display_text(
+            info.as_ref()
+                .map(|value| value.recommended_players.as_str()),
+        ),
         max_players: header
             .as_ref()
             .and_then(|value| value.max_players)
@@ -391,13 +429,7 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
         tileset: info.as_ref().map(|value| value.tileset),
         playable_width: info.as_ref().map(|value| value.playable_size[0]),
         playable_height: info.as_ref().map(|value| value.playable_size[1]),
-        parse_status: if content_type == "campaign" {
-            "metadata_unavailable"
-        } else if parse_error.is_none() {
-            "ok"
-        } else {
-            "metadata_error"
-        },
+        parse_status: metadata_status(content_type, parse_error.is_none(), info.is_some()),
         parse_error,
         modification,
     }
@@ -708,21 +740,62 @@ fn paths_overlap(input: &Path, output: &Path) -> bool {
     input.starts_with(&output) || output.starts_with(&input)
 }
 
+/// Recover a `w3i` from raw sector data, for archives that will not open by
+/// name. Carving cannot tell a live sector from an orphaned one, so the result
+/// is a salvage guess — [`pick_name`] ranks it below the plaintext `HM3W` title.
+fn salvage_w3i(bytes: &[u8]) -> Option<War3MapW3i> {
+    carve::carve(bytes).map(|mut carved| {
+        carved.resolve_trigger_strings();
+        carved.info
+    })
+}
+
+/// Strip color codes and drop unresolved `TRIGSTR_*` placeholders.
+fn display_text(value: Option<&str>) -> String {
+    value
+        .map(strip_warcraft_codes)
+        .filter(|text| !text.trim().is_empty() && trigstr_id(text).is_none())
+        .unwrap_or_default()
+}
+
+fn metadata_status(content_type: &str, archive_ok: bool, has_info: bool) -> &'static str {
+    if content_type == "campaign" {
+        "metadata_unavailable"
+    } else if archive_ok {
+        "ok"
+    } else if has_info {
+        "carved"
+    } else {
+        "metadata_error"
+    }
+}
+
 /// Resolve a map's display name, best source first, and report which tier won.
 ///
-/// The `w3i` name is the authoritative one but lives inside the MPQ archive, so
-/// it is unavailable for every map whose archive fails to open. The `HM3W`
-/// prefix is plaintext and survives that, which is what keeps protected maps
-/// from falling through to a filename — and, on the content-addressed dataset,
-/// to a bare sha256 that reads as a title but is not one.
+/// A `w3i` read out of the archive by name is authoritative. The `HM3W` prefix
+/// is plaintext and survives an unreadable archive, which is what keeps
+/// protected maps from falling through to a filename — and, on the
+/// content-addressed dataset, to a bare sha256 that reads as a title but is not
+/// one.
+///
+/// A *carved* `w3i` ranks below `HM3W` on purpose. Carving reads sector data
+/// with no table to say which sectors are live, so a map that was re-saved can
+/// hand back the title of an older build still lying in the file: 26 of the
+/// dataset's 224 carved maps disagree with their header that way, and the
+/// header is the title the map was published under.
 fn pick_name(
     info_name: Option<&str>,
     header_name: Option<&str>,
+    carved_name: Option<&str>,
     fallback: &str,
 ) -> (String, &'static str) {
-    for (candidate, source) in [(info_name, "w3i"), (header_name, "hm3w")] {
+    for (candidate, source) in [
+        (info_name, "w3i"),
+        (header_name, "hm3w"),
+        (carved_name, "w3i_carved"),
+    ] {
         if let Some(value) = candidate.map(strip_warcraft_codes) {
-            if !value.trim().is_empty() {
+            if !value.trim().is_empty() && trigstr_id(&value).is_none() {
                 return (value, source);
             }
         }
@@ -818,22 +891,51 @@ mod tests {
     #[test]
     fn prefers_w3i_name_then_hm3w_then_filename() {
         assert_eq!(
-            pick_name(Some("W3i 名"), Some("HM3W 名"), "文件名"),
+            pick_name(Some("W3i 名"), Some("HM3W 名"), None, "文件名"),
             ("W3i 名".to_string(), "w3i")
         );
         // The tier that matters: no w3i, because the archive would not open.
         assert_eq!(
-            pick_name(None, Some("|cffff0000攻守兼备TD|r"), "文件名"),
+            pick_name(None, Some("|cffff0000攻守兼备TD|r"), None, "文件名"),
             ("攻守兼备TD".to_string(), "hm3w")
         );
         assert_eq!(
-            pick_name(None, None, "文件名"),
+            pick_name(None, None, None, "文件名"),
             ("文件名".to_string(), "filename")
         );
         // A blank name is not a name; fall through rather than title a map "".
         assert_eq!(
-            pick_name(Some("   "), Some("守卫剑阁"), "文件名"),
+            pick_name(Some("   "), Some("守卫剑阁"), None, "文件名"),
             ("守卫剑阁".to_string(), "hm3w")
+        );
+        // An unresolved string-table ref is not a title.
+        assert_eq!(
+            pick_name(
+                Some("TRIGSTR_001"),
+                Some("宝可梦大冒险0.8a"),
+                None,
+                "文件名"
+            ),
+            ("宝可梦大冒险0.8a".to_string(), "hm3w")
+        );
+    }
+
+    /// A carved `w3i` can be an orphaned older copy, so the plaintext header
+    /// wins when the two disagree — but it still beats a sha256 filename.
+    #[test]
+    fn ranks_a_carved_w3i_below_the_header() {
+        assert_eq!(
+            pick_name(
+                None,
+                Some("攻守兼备TD V4.6正式版"),
+                Some("攻守兼备TD V4.4正式版"),
+                "文件名"
+            ),
+            ("攻守兼备TD V4.6正式版".to_string(), "hm3w")
+        );
+        assert_eq!(
+            pick_name(None, None, Some("守卫剑阁-纵横天下V1.22"), "文件名"),
+            ("守卫剑阁-纵横天下V1.22".to_string(), "w3i_carved")
         );
     }
 
@@ -856,6 +958,63 @@ mod tests {
         assert_eq!(derived.max_players, Some(8));
         assert_eq!(derived.parse_status, "metadata_error");
         assert!(derived.parse_error.is_some());
+    }
+
+    /// An unopenable archive with a `w3i` still sitting in its sector data.
+    fn unreadable_archive_with_carvable_w3i(header_name: &str, map_name: &str) -> Vec<u8> {
+        use flate2::write::ZlibEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let mut bytes = Vec::from(*war3parser::prelude::HM3W_MAGIC);
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(header_name.as_bytes());
+        bytes.push(0);
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.resize(512, 0);
+        bytes.extend_from_slice(&[0xAB; 1024]);
+
+        let mut w3i = Vec::new();
+        w3i.extend(25u32.to_le_bytes());
+        w3i.extend(0u32.to_le_bytes());
+        w3i.extend(0u32.to_le_bytes());
+        for field in [map_name, "某作者", "", ""] {
+            w3i.extend(field.as_bytes());
+            w3i.push(0);
+        }
+        w3i.resize(w3i.len() + 256, 0);
+
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&w3i).unwrap();
+        bytes.push(0x02);
+        bytes.extend(encoder.finish().unwrap());
+        bytes
+    }
+
+    #[test]
+    fn derives_carved_w3i_when_the_archive_is_unreadable() {
+        // No header title, so the carved one is all there is.
+        let bytes = unreadable_archive_with_carvable_w3i("", "守卫剑阁");
+        let derived = derive(&bytes, "deadbeef.w3x", "map");
+        assert_eq!(derived.name, "守卫剑阁");
+        assert_eq!(derived.name_source, "w3i_carved");
+        assert_eq!(derived.author, "某作者");
+        assert_eq!(derived.parse_status, "carved");
+        assert!(derived.parse_error.is_some());
+    }
+
+    /// The carved title may be an orphaned older copy, so a header title wins —
+    /// the rest of the carved metadata is still kept.
+    #[test]
+    fn a_header_title_outranks_the_carved_one() {
+        let bytes =
+            unreadable_archive_with_carvable_w3i("攻守兼备TD V4.6正式版", "攻守兼备TD V4.4正式版");
+        let derived = derive(&bytes, "deadbeef.w3x", "map");
+        assert_eq!(derived.name, "攻守兼备TD V4.6正式版");
+        assert_eq!(derived.name_source, "hm3w");
+        assert_eq!(derived.author, "某作者");
+        assert_eq!(derived.parse_status, "carved");
     }
 
     #[test]

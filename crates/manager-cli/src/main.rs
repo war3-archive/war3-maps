@@ -8,6 +8,10 @@ use war3parser::prelude::{War3MapW3i, War3MapW3x};
 
 mod catalog;
 
+fn has_metadata(parse_status: &str) -> bool {
+    matches!(parse_status, "ok" | "carved")
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 enum Command {
@@ -372,7 +376,7 @@ fn main() -> anyhow::Result<()> {
             let total = records.len();
             let ok = records
                 .iter()
-                .filter(|r| r.derived.parse_status == "ok")
+                .filter(|r| has_metadata(r.derived.parse_status))
                 .count();
             let covers = records.iter().filter(|r| r.cover_source.is_some()).count();
             let modified = records
@@ -380,7 +384,7 @@ fn main() -> anyhow::Result<()> {
                 .filter(|r| r.derived.modification.is_some())
                 .count();
             if only_failed {
-                records.retain(|record| record.derived.parse_status != "ok");
+                records.retain(|record| !has_metadata(record.derived.parse_status));
             }
             write_jsonl(&records, out)?;
             eprintln!(

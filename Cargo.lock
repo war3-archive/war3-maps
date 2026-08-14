@@ -735,6 +735,7 @@ dependencies = [
  "anyhow",
  "base64",
  "clap",
+ "flate2",
  "image",
  "serde",
  "serde_json",
@@ -759,10 +760,9 @@ dependencies = [
 [[package]]
 name = "war3parser"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "803d84ec28a6a3e5a072400534603f3f5f7e0f6303b02efc2fe14bfb83aaf67d"
 dependencies = [
  "base64",
+ "flate2",
  "image",
  "image-blp",
  "serde",

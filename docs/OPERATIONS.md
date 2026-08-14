@@ -52,6 +52,20 @@ war3-maps-dataset/
 `TRIGSTR_*` 会被清理，同时保留原始文件名。战役包当前使用
 `content_type: "campaign"` 和 `parse_status: "metadata_unavailable"`，可通过文件名检索。
 
+### `parse_status`
+
+| 值 | 含义 |
+|----|------|
+| `ok` | 档案正常打开，`war3map.w3i` 按名读取 |
+| `carved` | 档案打不开（哈希表/块表被破坏），但从原始扇区数据里雕出了一份 `w3i`；`parse_error` 仍记录档案本身的失败原因 |
+| `metadata_error` | 档案打不开，扇区里也找不到可信的 `w3i` |
+| `metadata_unavailable` | 战役包（`.w3n`），当前不解析元数据 |
+
+`carved` 记录的元数据可信但不权威：雕取只看扇区数据，没有表能说明哪个扇区是“活”的，
+重存过的地图可能留下旧版本的 `w3i`。因此 `name_source` 用 `w3i_carved` 与按名读取的
+`w3i` 区分开，且排在明文 `hm3w` 标题之后——数据集里 224 条 `carved` 记录中有 26 条
+两者不一致，而文件实际发布用的是 `hm3w` 里的标题。
+
 ## 重扫与回填
 
 解析能力改善后，无需重建数据集。以下命令会重读对象、按 SHA-256 回填元数据，并保留

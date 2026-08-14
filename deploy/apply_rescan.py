@@ -40,6 +40,11 @@ DERIVED = (
 )
 
 
+def usable_metadata(status: object) -> bool:
+    """A record has usable map metadata, even if the archive itself is opaque."""
+    return status in {"ok", "carved"}
+
+
 def strip_warcraft_codes(text: str) -> str:
     """Mirror of `catalog.rs::strip_warcraft_codes` for names repaired here."""
     out = []
@@ -135,7 +140,7 @@ def main() -> None:
             outcomes["not_scanned"] += 1
             continue
 
-        was_broken = item.get("parse_status") != "ok"
+        was_broken = not usable_metadata(item.get("parse_status"))
         before_name = item.get("name")
 
         for field in DERIVED:
@@ -172,9 +177,9 @@ def main() -> None:
             outcomes["renamed"] += 1
             renamed.append({"sha256": item["sha256"], "from": before_name, "to": item["name"]})
 
-        if was_broken and item.get("parse_status") == "ok":
+        if was_broken and usable_metadata(item.get("parse_status")):
             outcomes["recovered"] += 1
-        elif item.get("parse_status") == "ok":
+        elif usable_metadata(item.get("parse_status")):
             outcomes["ok"] += 1
         else:
             outcomes["still_broken"] += 1
