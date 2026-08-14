@@ -5,17 +5,17 @@
 //! leaves the archive permanently opaque to any name-based reader — the
 //! filename hashes are one-way, so there is nothing to reconstruct them from.
 //!
-//! The sector *data* is usually untouched, though. An MPQ sector is a one-byte
-//! compression mask followed by the compressed stream, so a zlib-compressed
-//! member appears in the file literally as `02 78 ..`. Scanning for that and
-//! validating whatever inflates recovers the metadata without consulting either
-//! table.
+//! The sector *data* is usually untouched, though, and `mpq::carve` finds it by
+//! shape: an MPQ sector is a one-byte compression mask followed by the
+//! compressed stream, so a zlib-compressed member appears in the file literally
+//! as `02 78 ..`. What is left here is the Warcraft III half — deciding whether
+//! what inflated is a real `w3i` or a coincidence.
 //!
 //! A `war3map.w3i` fits in a single sector, but a `war3map.wts` routinely does
 //! not: MPQ splits a member into fixed-size sectors that are each deflated on
 //! their own, so a large string table is a *run* of adjacent streams and only
 //! its first few dozen entries are visible in the first one. Table candidates
-//! are therefore inflated as a chain — see [`inflate_chain`].
+//! are therefore inflated as a chain — see [`mpq::carve::inflate_sector_chain`].
 //!
 //! This is deliberately a separate entry point rather than a fallback inside
 //! [`crate::archive::War3MapW3x`]: it is a salvage operation on a broken file,
@@ -24,25 +24,9 @@
 //! sectors are *live*, either — a map that was re-saved can leave an orphaned
 //! copy of an older `w3i` behind, and carving cannot tell the two apart.
 
-use flate2::read::ZlibDecoder;
-use std::io::Read;
+use mpq::carve::{carve_sectors, inflate_sector_chain};
 
 use crate::formats::{War3MapW3i, War3MapWts};
-
-/// Compression mask for zlib, the method Warcraft III's editor uses.
-const MASK_ZLIB: u8 = 0x02;
-
-/// Plausible zlib FLG bytes for deflate with a 32K window.
-///
-/// FCHECK makes the `CMF FLG` pair divisible by 31, and `0x78` leaves a
-/// remainder of 30, so a valid FLG is `1 mod 31`. Of those, the values without
-/// the FDICT bit — the only ones a plain deflate stream uses — are exactly these
-/// four, one per compression level.
-const ZLIB_FLG: [u8; 4] = [0x01, 0x5E, 0x9C, 0xDA];
-
-/// Upper bound on one carved member. A `w3i` is a few KB; a string table can be
-/// larger, but nothing here justifies inflating a decompression bomb.
-const MAX_CARVED: u64 = 8 << 20;
 
 /// The `war3map.wts` record keyword, used to skip sectors cheaply before paying
 /// for a lossy UTF-8 conversion.
@@ -70,47 +54,6 @@ fn plausible(info: &War3MapW3i) -> bool {
         && !info.name.chars().any(char::is_control)
 }
 
-/// Whether a zlib-compressed MPQ sector could begin at `at`.
-fn starts_sector(buffer: &[u8], at: usize) -> bool {
-    matches!(buffer.get(at..at + 3), Some([MASK_ZLIB, 0x78, flg]) if ZLIB_FLG.contains(flg))
-}
-
-/// Every offset that could begin a zlib-compressed MPQ sector.
-fn sector_offsets(buffer: &[u8]) -> impl Iterator<Item = usize> + '_ {
-    (0..buffer.len().saturating_sub(2)).filter(|&at| starts_sector(buffer, at))
-}
-
-/// Inflate the sector at `offset`, skipping its compression mask byte, and
-/// report how many compressed bytes the stream consumed.
-fn inflate(buffer: &[u8], offset: usize) -> Option<(Vec<u8>, usize)> {
-    let mut out = Vec::new();
-    let mut decoder = ZlibDecoder::new(&buffer[offset + 1..]);
-    (&mut decoder).take(MAX_CARVED).read_to_end(&mut out).ok()?;
-    let consumed = decoder.total_in() as usize;
-    (!out.is_empty()).then_some((out, consumed))
-}
-
-/// Inflate the sector at `offset` together with every sector that directly
-/// follows it, which is how MPQ stores a member too large for one sector.
-///
-/// Returns the offset just past the run as well, so a caller walking the file
-/// can skip the sectors already folded into this member.
-fn inflate_chain(buffer: &[u8], offset: usize) -> (Vec<u8>, usize) {
-    let mut joined = Vec::new();
-    let mut at = offset;
-    while starts_sector(buffer, at) {
-        let Some((data, consumed)) = inflate(buffer, at) else {
-            break;
-        };
-        joined.extend_from_slice(&data);
-        at += 1 + consumed;
-        if joined.len() as u64 >= MAX_CARVED {
-            break;
-        }
-    }
-    (joined, at)
-}
-
 /// Parse a string table out of carved bytes, rejecting the empty result.
 ///
 /// `War3MapWts::parse` accepts anything, so an unrelated sector that merely
@@ -134,11 +77,7 @@ pub fn carve(buffer: &[u8]) -> Option<Carved> {
     // sectors are not chained all over again.
     let mut table_scanned_until = 0;
 
-    for offset in sector_offsets(buffer) {
-        let Some((data, _)) = inflate(buffer, offset) else {
-            continue;
-        };
-
+    for (offset, data) in carve_sectors(buffer) {
         if info.is_none() {
             if let Ok(candidate) = War3MapW3i::parse(&data) {
                 if plausible(&candidate) {
@@ -157,7 +96,7 @@ pub fn carve(buffer: &[u8]) -> Option<Carved> {
         // The keyword is here, so this may be the head of a multi-sector table.
         // Keep the richest candidate rather than the first: protected maps carry
         // leftovers and imported tables alongside the real one.
-        let (joined, end) = inflate_chain(buffer, offset);
+        let (joined, end) = inflate_sector_chain(buffer, offset);
         table_scanned_until = end;
         if let Some(table) = parse_table(&joined) {
             let best = strings.as_ref().map_or(0, |t| t.string_map.len());
@@ -194,7 +133,7 @@ mod tests {
     fn sector(payload: &[u8]) -> Vec<u8> {
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(payload).unwrap();
-        let mut out = vec![MASK_ZLIB];
+        let mut out = vec![0x02];
         out.extend(encoder.finish().unwrap());
         out
     }
