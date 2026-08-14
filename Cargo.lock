@@ -760,6 +760,8 @@ dependencies = [
 [[package]]
 name = "war3parser"
 version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91b87a4d9ea76d335be42b35f406c0f4136d17959c319426f953540dd8be8f51"
 dependencies = [
  "base64",
  "flate2",
