@@ -25,6 +25,7 @@
 //! copy of an older `w3i` behind, and carving cannot tell the two apart.
 
 use mpq::carve::{carve_sectors, inflate_sector_chain};
+use mpq::Archive;
 
 use crate::formats::{War3MapW3i, War3MapWts};
 
@@ -65,12 +66,83 @@ fn parse_table(data: &[u8]) -> Option<War3MapWts> {
     (!table.string_map.is_empty()).then_some(table)
 }
 
-/// Recover map metadata by scanning raw sector data.
+/// Recover map metadata from an archive that cannot be read by name.
 ///
-/// Returns `None` when nothing that parses as a `w3i` is present — which is
-/// itself informative: it means the file's payload is transformed too, not just
-/// its tables.
+/// Tries the structured route first: MPQ lays members out contiguously and each
+/// one begins with its own sector offset table, so `war3-mpq` can walk the data
+/// region and hand back real members even with both tables destroyed. That is
+/// worth preferring — a member is a whole file, where a scan sees loose sectors
+/// and cannot tell a live one from a copy an earlier save left behind.
+///
+/// This route is cheap: it reads the members the archive points at and stops as
+/// soon as it has what it came for. The exhaustive scan is deliberately *not*
+/// part of it — see [`carve_deep`], which a caller has to ask for.
+///
+/// Returns `None` when the walk finds no `w3i`, which happens when the member
+/// chain is broken as well — an encrypted member stops it dead, since its
+/// sector offset table is encrypted along with the rest.
 pub fn carve(buffer: &[u8]) -> Option<Carved> {
+    carve_members(buffer)
+}
+
+/// [`carve`], and if that finds nothing, scan every byte of the archive for the
+/// shape of a compressed sector.
+///
+/// The scan is exhaustive by nature: it tries to inflate at every offset that
+/// could begin a zlib sector, over the whole file. That is the only thing left
+/// when the member chain is unreadable, and it recovers maps nothing else
+/// reaches, but it costs a full pass per archive — so it belongs behind an
+/// explicit call rather than in the default path.
+pub fn carve_deep(buffer: &[u8]) -> Option<Carved> {
+    carve(buffer).or_else(|| carve_scan(buffer))
+}
+
+/// Largest member worth decompressing here. A `w3i` is a few KB and a string
+/// table a few hundred; the members above this bound are scripts, terrain and
+/// textures, and inflating them to look at their first bytes is most of what a
+/// carve costs.
+const MAX_INTERESTING: u32 = 1 << 21;
+
+/// Recover metadata from the members `war3-mpq` can walk to.
+fn carve_members(buffer: &[u8]) -> Option<Carved> {
+    let mut archive = Archive::load(buffer.to_vec()).ok()?;
+    let members = archive.salvage_members();
+
+    let mut info: Option<War3MapW3i> = None;
+    let mut strings: Option<War3MapWts> = None;
+
+    for member in &members {
+        if info.is_some() && strings.is_some() {
+            break;
+        }
+        if member.packed_size > MAX_INTERESTING {
+            continue;
+        }
+        let Ok(data) = archive.read_salvaged(member) else {
+            continue;
+        };
+
+        if info.is_none() {
+            if let Ok(candidate) = War3MapW3i::parse(&data) {
+                if plausible(&candidate) {
+                    info = Some(candidate);
+                    continue;
+                }
+            }
+        }
+
+        // Unlike the scan, a member is already whole, so the richest-wins rule
+        // is not needed: a table that parses here is the table.
+        if strings.is_none() && data.windows(WTS_KEYWORD.len()).any(|w| w == WTS_KEYWORD) {
+            strings = parse_table(&data);
+        }
+    }
+
+    info.map(|info| Carved { info, strings })
+}
+
+/// Recover map metadata by scanning raw sector data.
+fn carve_scan(buffer: &[u8]) -> Option<Carved> {
     let mut info: Option<War3MapW3i> = None;
     let mut strings: Option<War3MapWts> = None;
     // End of the last sector run folded into a string table, so its inner
@@ -163,7 +235,7 @@ mod tests {
         archive.extend(sector(&w3i("守卫剑阁")));
         archive.extend(vec![0xCD; 4096]);
 
-        let carved = carve(&archive).expect("w3i should be carved");
+        let carved = carve_deep(&archive).expect("w3i should be carved");
         assert_eq!(carved.info.name, "守卫剑阁");
         assert_eq!(carved.info.author, "An Author");
     }
@@ -173,7 +245,7 @@ mod tests {
         let mut archive = sector(&w3i("TRIGSTR_001"));
         archive.extend(sector(b"STRING 1\n{\n\xe6\x94\xbb\xe5\xae\x88\n}\n"));
 
-        let mut carved = carve(&archive).expect("w3i should be carved");
+        let mut carved = carve_deep(&archive).expect("w3i should be carved");
         assert_eq!(carved.info.name, "TRIGSTR_001");
         carved.resolve_trigger_strings();
         assert_eq!(carved.info.name, "攻守");
@@ -187,7 +259,7 @@ mod tests {
         archive.extend(sector(wts_entry(1, "first sector").as_bytes()));
         archive.extend(sector(wts_entry(900, "跨扇区的标题").as_bytes()));
 
-        let carved = carve(&archive).expect("w3i should be carved");
+        let carved = carve_deep(&archive).expect("w3i should be carved");
         let strings = carved.strings.as_ref().expect("table should be carved");
         assert_eq!(strings.get(1), Some("first sector"));
         assert_eq!(strings.get(900), Some("跨扇区的标题"));
@@ -205,7 +277,7 @@ mod tests {
             format!("{}{}", wts_entry(1, "one"), wts_entry(2, "two")).as_bytes(),
         ));
 
-        let mut carved = carve(&archive).expect("w3i should be carved");
+        let mut carved = carve_deep(&archive).expect("w3i should be carved");
         carved.resolve_trigger_strings();
         assert_eq!(carved.info.name, "two");
     }
@@ -214,7 +286,7 @@ mod tests {
     fn a_payload_with_no_w3i_yields_nothing() {
         let mut archive = vec![0xAB; 2048];
         archive.extend(sector(b"not a w3i, just bytes"));
-        assert!(carve(&archive).is_none());
+        assert!(carve_deep(&archive).is_none());
     }
 
     /// Inflating arbitrary data can succeed; only content decides.
@@ -224,6 +296,6 @@ mod tests {
         bogus.extend(99u32.to_le_bytes()); // version outside the known ladder
         bogus.extend(b"\0\0\0\0");
         bogus.resize(512, 0);
-        assert!(carve(&sector(&bogus)).is_none());
+        assert!(carve_deep(&sector(&bogus)).is_none());
     }
 }

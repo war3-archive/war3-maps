@@ -50,7 +50,7 @@ pub mod prelude {
     pub use crate::archive::War3MapW3x;
     #[cfg(feature = "carve")]
     #[doc(inline)]
-    pub use crate::carve::{carve, Carved};
+    pub use crate::carve::{carve, carve_deep, Carved};
     #[doc(inline)]
     pub use crate::error::Error;
     #[doc(inline)]

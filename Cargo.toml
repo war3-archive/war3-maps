@@ -4,7 +4,7 @@ members = ["crates/core", "crates/cli", "crates/wasm"]
 default-members = ["crates/core", "crates/cli"]
 
 [workspace.package]
-version = "0.5.4"
+version = "0.5.5"
 edition = "2021"
 description = "A extractor and parser for Warcraft 3 map files"
 documentation = "https://docs.rs/war3parser"
