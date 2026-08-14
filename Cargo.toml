@@ -33,4 +33,4 @@ serde_json = "1.0.135"
 
 # Parsing lives upstream in war3parser. `carve` salvages metadata from archives
 # whose MPQ tables are unreadable.
-war3parser = { version = "0.5.3", features = ["serde", "carve"] }
+war3parser = { version = "0.5.4", features = ["serde", "carve"] }
