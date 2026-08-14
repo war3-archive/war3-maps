@@ -13,6 +13,7 @@ readme = "../../README.md"
 
 [dependencies]
 base64 = "0.22.1"
+flate2 = { version = "1.0.27", optional = true }
 image = { workspace = true }
 image-blp = { workspace = true }
 # Renamed dependency: the fork carries fixes for archives that map protectors
@@ -26,5 +27,8 @@ serde_json = { workspace = true, optional = true }
 serde_json = { workspace = true }
 
 [features]
-default = ["serde"]
+default = ["serde", "carve"]
 serde = ["dep:serde", "dep:serde_json"]
+# Sector-level metadata salvage for unreadable archives. Optional so that
+# name-based readers do not pull in an inflate implementation they never call.
+carve = ["dep:flate2"]

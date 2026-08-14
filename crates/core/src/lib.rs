@@ -6,6 +6,7 @@
 //! ## Crate layout
 //!
 //! - [`archive`] — the map container: optional `HM3W` header + embedded MPQ
+//! - [`carve`] — metadata salvage for archives whose MPQ tables are unreadable
 //! - [`formats`] — parsers for the member files (`w3i`, `wts`, `imp`, `mmp`)
 //! - [`model`] — portable data structures shared by CLI / WASM / library users
 //! - [`reader`] — bounds-checked little-endian [`reader::ByteReader`]
@@ -20,6 +21,7 @@
 //! | Feature | Default | Purpose |
 //! |---------|---------|---------|
 //! | `serde` | yes     | JSON serialization for dumps and the WASM bridge |
+//! | `carve` | yes     | [`carve`] salvage for unreadable archives (pulls in `flate2`) |
 //!
 //! ## Example
 //!
@@ -34,6 +36,8 @@
 //! ```
 
 pub mod archive;
+#[cfg(feature = "carve")]
+pub mod carve;
 pub mod error;
 pub mod formats;
 pub mod model;
@@ -44,6 +48,9 @@ pub mod reader;
 pub mod prelude {
     #[doc(inline)]
     pub use crate::archive::War3MapW3x;
+    #[cfg(feature = "carve")]
+    #[doc(inline)]
+    pub use crate::carve::{carve, Carved};
     #[doc(inline)]
     pub use crate::error::Error;
     #[doc(inline)]

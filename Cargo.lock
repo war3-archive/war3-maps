@@ -747,6 +747,7 @@ name = "war3parser"
 version = "0.5.2"
 dependencies = [
  "base64",
+ "flate2",
  "image",
  "image-blp",
  "serde",
