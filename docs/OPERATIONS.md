@@ -116,6 +116,16 @@ merge_dataset.py
 
 首次上传前，按实际来源、许可证和联系方式补全
 `deploy/hf/DATASET_README.template.md`，并将其保存为数据集根目录的 `README.md`。
+
+该模板的 YAML front matter 决定 Hub 上的 Dataset Viewer 显示什么：`configs`
+把预览锁定在 `catalog/maps.jsonl`（不写它时，Hub 会把 `covers/` 当成
+imagefolder 自动推断，预览只剩 image + sha 前缀 label 两列，而且上万个文件的
+parquet 转换跑不完，viewer/search/filter 全部不可用）；`dataset_info.features`
+显式钉死目录的字段类型，`build_version`（仅 5 条非空）和 `modification`（仅
+2544 条非空）这类稀疏列不再依赖分块推断。**目录新增字段时必须同步补进
+`features`**，否则新字段会被 `unexpected_field_behavior=ignore` 静默丢掉。改完
+模板记得重新复制到数据集根目录，再上传。
+
 然后安装上传脚本依赖：
 
 ```bash
