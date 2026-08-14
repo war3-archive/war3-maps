@@ -16,8 +16,12 @@ test:
     cargo test --workspace --all-targets
 
 # Bump every crate together and publish bottom-up. Needs `cargo install cargo-release`.
+#
+# --registry is not optional here: ~/.cargo/config.toml replaces crates-io with
+# an rsproxy mirror, which cargo refuses to publish to. Add --execute to do it
+# for real; without it cargo-release only prints the plan.
 release level:
-    cargo release {{level}} --workspace
+    cargo release {{level}} --workspace --registry crates-io
 
 # Refresh an existing dataset after an upstream parser fix.
 rescan dataset:

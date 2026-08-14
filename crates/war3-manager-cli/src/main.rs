@@ -1,5 +1,7 @@
 use std::ffi::OsStr;
+use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use clap::Parser;
@@ -264,21 +266,35 @@ where
     let paths = collect_objects(root)?;
     let workers =
         jobs.unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |value| value.get()));
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let results: Mutex<Vec<T>> = Mutex::new(Vec::with_capacity(paths.len()));
+    let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
+    let total = paths.len();
+    // The dataset is 79 GB, so a pass takes minutes with nothing to show for
+    // it. Without a count there is no way to tell a slow run from a stuck one —
+    // which is exactly the mistake this reports its way out of. Progress goes
+    // to stderr so the JSONL on stdout stays clean.
+    let results: Mutex<Vec<T>> = Mutex::new(Vec::with_capacity(total));
     std::thread::scope(|scope| {
         for _ in 0..workers {
             scope.spawn(|| {
                 let mut local = Vec::new();
                 loop {
-                    let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let index = next.fetch_add(1, Ordering::Relaxed);
                     let Some(path) = paths.get(index) else { break };
                     local.push(scan(path));
+                    let seen = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    if seen % 64 == 0 || seen == total {
+                        eprint!("\r  {seen}/{total} objects ({}%)", seen * 100 / total.max(1));
+                        let _ = std::io::stderr().flush();
+                    }
                 }
                 results.lock().unwrap().extend(local);
             });
         }
     });
+    if total > 0 {
+        eprintln!();
+    }
     Ok(results.into_inner().unwrap())
 }
 
