@@ -122,10 +122,11 @@ fn carve_members(buffer: &[u8]) -> Option<Carved> {
             continue;
         }
 
-        // Sniff one sector first. Inflating every member in full — scripts,
-        // terrain, textures — to look at its first bytes is what made a carve
-        // cost seconds per map.
-        let Ok(head) = archive.read_salvaged_prefix(member, 1) else {
+        // Sniff the head first. Inflating every member in full — scripts,
+        // terrain, textures — to look at its opening bytes is what made a carve
+        // cost seconds per map. A wts announces itself within its first line,
+        // so half a kilobyte covers both checks.
+        let Ok(head) = archive.peek_salvaged(member, 512) else {
             continue;
         };
 

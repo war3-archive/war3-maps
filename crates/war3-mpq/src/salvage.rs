@@ -93,6 +93,55 @@ impl Archive {
         self.read_salvaged_prefix(member, usize::MAX)
     }
 
+    /// Decompress just enough of a member's first sector to identify it.
+    ///
+    /// A member's content type is only visible after inflating — the payload's
+    /// magic sits inside the deflate stream, so the compressed bytes say
+    /// nothing about it. Stopping at `want` bytes is as close to free as
+    /// identification gets, and it is what a caller sniffing members should
+    /// use: inflating a whole archive's worth of scripts and textures to read
+    /// four bytes from each is the expensive way to do the same thing.
+    pub fn peek_salvaged(&mut self, member: &SalvagedMember, want: usize) -> Result<Vec<u8>, Error> {
+        if want == 0 || self.sector_size == 0 {
+            return Ok(Vec::new());
+        }
+        let Some(pair) = member.sector_offsets.windows(2).next() else {
+            return Ok(Vec::new());
+        };
+        let (from, to) = (pair[0], pair[1]);
+        let len = (to - from) as usize;
+        if len == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut raw = vec![0; len];
+        self.file.seek(SeekFrom::Start(
+            self.offset + u64::from(member.offset) + u64::from(from),
+        ))?;
+        self.file.read_exact(&mut raw)?;
+
+        // A sector as long as the archive's sector size is stored verbatim.
+        if len == self.sector_size as usize {
+            raw.truncate(want);
+            return Ok(raw);
+        }
+
+        // Only zlib stops cleanly on a short output buffer; the others are read
+        // through writers that fail on one, so fall back to the whole sector.
+        let mut small = vec![0; want];
+        match decompress(&mut raw.clone(), &mut small) {
+            Ok(written) => {
+                small.truncate(written.min(want));
+                Ok(small)
+            }
+            Err(_) => {
+                let mut whole = self.read_salvaged_prefix(member, 1)?;
+                whole.truncate(want);
+                Ok(whole)
+            }
+        }
+    }
+
     /// Decompress at most `sectors` sectors of a salvaged member.
     ///
     /// A caller identifying members by content does not need the whole file —

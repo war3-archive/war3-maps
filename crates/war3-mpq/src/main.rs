@@ -55,20 +55,18 @@ fn salvage(archive_file_name: &str) {
 
     let members = archive.salvage_members();
     for (i, member) in members.iter().enumerate() {
-        match archive.read_salvaged(member) {
+        // Four inflated bytes name the member; inflating it whole to read them
+        // would decompress every script and texture in the archive.
+        match archive.peek_salvaged(member, 4) {
             // Names live only in the hash table, so the leading bytes are all a
             // caller has to identify a salvaged member by.
-            Ok(data) => println!(
-                "{:4} offset={:#x} packed={} sectors={} unpacked={} magic={}",
+            Ok(magic) => println!(
+                "{:4} offset={:#x} packed={} sectors={} magic={}",
                 i,
                 member.offset,
                 member.packed_size,
                 member.sector_count(),
-                data.len(),
-                data.iter()
-                    .take(4)
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<String>()
+                magic.iter().map(|b| format!("{:02x}", b)).collect::<String>()
             ),
             Err(e) => println!(
                 "{:4} offset={:#x} packed={} sectors={} error={}",
