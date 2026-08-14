@@ -1,6 +1,6 @@
-# Crates go to crates.io from `cargo release` on a developer machine; the tag it
-# pushes lands here for the two artefacts that need a runner — the cross-built
-# CLI and the npm wasm package.
+# Everything a tag produces: the crates, the npm wasm package and the
+# cross-built CLI. `cargo release` moves the version and pushes the tag; the
+# tokens live here, so publishing does too.
 name: Release
 
 on:
@@ -100,6 +100,21 @@ jobs:
         with:
           files: artifacts/*.tar.gz
           generate_release_notes: true
+
+  release-crates:
+    name: Publish to crates.io
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Publishes the workspace in dependency order and waits for each crate to
+      # appear on the index, which is the part that cannot be done from a
+      # developer machine: the token lives here.
+      - uses: katyo/publish-crates@v2
+        with:
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          ignore-unpublished-changes: true
 
   release-npm:
     name: Publish to npm

@@ -9,6 +9,8 @@ consolidate-commits = true
 tag-name = "v{{version}}"
 tag-message = "war3-archive {{version}}"
 pre-release-commit-message = "Release {{version}}"
-# The site is not a crate and has no reason to gate a crate release.
-publish = true
+# CI publishes: the crates.io token lives in GitHub secrets, and the npm package
+# uses OIDC trusted publishing, which only works from a workflow. cargo-release
+# moves the version, commits, tags and pushes; the tag does the rest.
+publish = false
 push = true

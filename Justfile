@@ -17,11 +17,11 @@ test:
 
 # Bump every crate together and publish bottom-up. Needs `cargo install cargo-release`.
 #
-# --registry is not optional here: ~/.cargo/config.toml replaces crates-io with
-# an rsproxy mirror, which cargo refuses to publish to. Add --execute to do it
-# for real; without it cargo-release only prints the plan.
+# Publishing itself happens in CI — the crates.io token and npm OIDC identity
+# live there — so this only moves the version and pushes the tag that triggers
+# it. Add --execute to do it for real; without it cargo-release prints the plan.
 release level:
-    cargo release {{level}} --workspace --registry crates-io
+    cargo release {{level}} --workspace
 
 # Refresh an existing dataset after an upstream parser fix.
 rescan dataset:
