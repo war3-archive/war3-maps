@@ -103,8 +103,10 @@ def main() -> None:
         folder_path=str(root),
         revision=args.revision,
         # Covers are published as WebP by export_covers.py; the PNG masters stay
-        # local, and .DS_Store has no business in a public dataset.
-        ignore_patterns=["covers/**/*.png", "**/.DS_Store"],
+        # local, and .DS_Store has no business in a public dataset. The patterns
+        # are matched with fnmatch against the repo-relative path, so `**/` only
+        # matches nested files — the dataset root needs its own bare pattern.
+        ignore_patterns=["covers/**/*.png", ".DS_Store", "**/.DS_Store"],
         commit_message="Upload cleaned Warcraft III map archive",
     )
     print(f"uploaded to https://huggingface.co/datasets/{args.repo_id}")
