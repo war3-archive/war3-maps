@@ -32,7 +32,7 @@ serde = "1.0.204"
 serde_json = "1.0.135"
 
 # Parsing lives upstream in war3parser.
-war3parser = { version = "0.5.2", features = ["serde", "carve"] }
+war3parser = { version = "0.5.3", features = ["serde", "carve"] }
 
 # TODO: drop this once war3parser 0.5.3 (the `carve` module) is published — the
 # relative path only resolves in a checkout that has both repos side by side, so

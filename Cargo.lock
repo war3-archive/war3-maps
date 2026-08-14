@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "war3parser"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "base64",
  "flate2",
