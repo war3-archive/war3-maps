@@ -1,0 +1,19 @@
+.DS_Store
+/.vscode
+target/
+dist
+node_modules
+*.tgz
+bindings/
+.cursorignore
+out/
+playground/dist-site/
+playground/node_modules/
+site-dist/
+.venv-hf/
+deploy/**/__pycache__/
+tmp_conclusion.md
+*.tsbuildinfo
+
+# Scan output written into the repo root by the Justfile recipes.
+rescan.jsonl
