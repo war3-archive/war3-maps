@@ -66,7 +66,10 @@ fn salvage(archive_file_name: &str) {
                 member.offset,
                 member.packed_size,
                 member.sector_count(),
-                magic.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                magic
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
             ),
             Err(e) => println!(
                 "{:4} offset={:#x} packed={} sectors={} error={}",

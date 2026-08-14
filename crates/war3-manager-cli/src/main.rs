@@ -96,7 +96,10 @@ enum Command {
         #[arg(short, long)]
         jobs: Option<usize>,
 
-        /// Only re-read objects whose metadata previously failed to parse
+        /// Only re-read objects the catalog does not already record as `ok`
+        ///
+        /// Reads `catalog/maps.jsonl` to find them, so a pass costs the handful
+        /// of archives worth re-reading instead of the whole 79 GB dataset.
         #[arg(long, default_value_t = false)]
         only_failed: bool,
 
@@ -270,7 +273,18 @@ where
     T: Send,
     F: Fn(&Path) -> T + Sync,
 {
-    let paths = collect_objects(root)?;
+    scan_paths(collect_objects(root)?, jobs, scan)
+}
+
+fn scan_paths<T, F>(
+    paths: Vec<std::path::PathBuf>,
+    jobs: Option<usize>,
+    scan: F,
+) -> anyhow::Result<Vec<T>>
+where
+    T: Send,
+    F: Fn(&Path) -> T + Sync,
+{
     let workers =
         jobs.unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |value| value.get()));
     let next = AtomicUsize::new(0);
@@ -288,11 +302,28 @@ where
                 loop {
                     let index = next.fetch_add(1, Ordering::Relaxed);
                     let Some(path) = paths.get(index) else { break };
+                    let started = std::time::Instant::now();
                     local.push(scan(path));
+                    let took = started.elapsed();
                     let seen = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    if seen % 64 == 0 || seen == total {
-                        eprint!("\r  {seen}/{total} objects ({}%)", seen * 100 / total.max(1));
+                    // Print every item once the tail is in sight: batching by 64
+                    // leaves the last partial batch silent, which reads exactly
+                    // like a hang on the object that takes minutes.
+                    if seen.is_multiple_of(64) || total - seen < 64 || seen == total {
+                        eprint!(
+                            "\r  {seen}/{total} objects ({}%)",
+                            seen * 100 / total.max(1)
+                        );
                         let _ = std::io::stderr().flush();
+                    }
+                    // One pathological archive can hold up the whole pass. Name
+                    // it rather than leaving a stalled counter to be guessed at.
+                    if took.as_secs() >= 5 {
+                        eprintln!(
+                            "\r  slow: {} took {:.1}s",
+                            path.file_name().and_then(OsStr::to_str).unwrap_or_default(),
+                            took.as_secs_f32()
+                        );
                     }
                 }
                 results.lock().unwrap().extend(local);
@@ -315,6 +346,28 @@ fn write_jsonl<T: serde::Serialize>(records: &[T], out: Option<String>) -> anyho
         None => print!("{body}"),
     }
     Ok(())
+}
+
+/// Every object the catalog does not already record as `ok`.
+///
+/// That is wider than "failed": a `carved` record came from salvaged sector
+/// data, so it is exactly what a change to the salvage path has to be measured
+/// against.
+fn unresolved_objects(root: &Path) -> anyhow::Result<std::collections::HashSet<String>> {
+    let path = root.join("catalog").join("maps.jsonl");
+    let body = std::fs::read_to_string(&path)
+        .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", path.display()))?;
+    let mut out = std::collections::HashSet::new();
+    for line in body.lines() {
+        let record: serde_json::Value = serde_json::from_str(line)?;
+        let status = record.get("parse_status").and_then(|v| v.as_str());
+        if status != Some("ok") {
+            if let Some(sha) = record.get("sha256").and_then(|v| v.as_str()) {
+                out.insert(sha.to_string());
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn collect_objects(root: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
@@ -390,8 +443,21 @@ fn main() -> anyhow::Result<()> {
             force_covers,
         } => {
             let root = Path::new(&dataset_root);
+            let mut paths = collect_objects(root)?;
+            if only_failed {
+                let unresolved = unresolved_objects(root)?;
+                paths.retain(|path| {
+                    path.file_stem()
+                        .and_then(OsStr::to_str)
+                        .is_some_and(|sha| unresolved.contains(sha))
+                });
+                eprintln!(
+                    "  {} object(s) the catalog does not record as ok",
+                    paths.len()
+                );
+            }
             let mut records: Vec<RescanRecord> =
-                scan_objects(root, jobs, |path| rescan_one(path, root, force_covers))?
+                scan_paths(paths, jobs, |path| rescan_one(path, root, force_covers))?
                     .into_iter()
                     .flatten()
                     .collect();
@@ -406,9 +472,6 @@ fn main() -> anyhow::Result<()> {
                 .iter()
                 .filter(|r| r.derived.modification.is_some())
                 .count();
-            if only_failed {
-                records.retain(|record| !has_metadata(record.derived.parse_status));
-            }
             write_jsonl(&records, out)?;
             eprintln!(
                 "rescanned {total} objects, {ok} with metadata, {covers} covers recovered, {modified} modified"

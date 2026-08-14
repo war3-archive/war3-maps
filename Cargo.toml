@@ -33,6 +33,10 @@ panic = "abort"
 [profile.catalog]
 inherits = "release"
 panic = "unwind"
+# Keep symbols: this profile is the one long enough to need profiling, and a
+# stripped binary samples as bare addresses.
+strip = false
+debug = 1
 
 [workspace.dependencies]
 image = "0.24.3"

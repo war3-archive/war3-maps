@@ -1,7 +1,7 @@
 use bzip2_rs as bzip2;
 use implode::exploder::Exploder;
 use implode::symbol::DEFAULT_CODE_TABLE;
-use std::io::{self, Error};
+use std::io::{self, Error, ErrorKind};
 
 const COMPRESSION_HUFFMAN: u8 = 0x01;
 const COMPRESSION_ZLIB: u8 = 0x02;
@@ -34,28 +34,34 @@ pub fn decompress(data: &mut [u8], out: &mut [u8]) -> Result<usize, Error> {
     }
 
     if compression_type & COMPRESSION_PKWARE != 0 {
+        // Salvage feeds this arbitrary bytes, so it has to fail rather than
+        // spin: the exploder reports how much it consumed, and a block that
+        // consumes nothing and produces nothing never will. Upstream looped on
+        // exactly that, and wrote every block over the front of `out` instead
+        // of appending, so a multi-block file came out wrong as well.
         let mut exploder = Exploder::new(&DEFAULT_CODE_TABLE);
+        let mut read = 1usize; // skip the compression mask byte
+        let mut written = 0usize;
 
-        let mut cpos: u32 = 1;
-        let len = data.len();
-        let mut c = 0;
+        while !exploder.ended && read < data.len() && written < out.len() {
+            let (consumed, block) = exploder
+                .explode_block(&data[read..])
+                .map_err(|_| Error::new(ErrorKind::InvalidData, "PKWARE stream is malformed"))?;
 
-        while !exploder.ended {
-            let abuf = &mut data[cpos as usize..len];
-
-            let x = exploder.explode_block(abuf).unwrap();
-
-            cpos += x.0 as u32;
-
-            let bf = x.1;
-
-            for (d, s) in out.iter_mut().zip(bf.iter()) {
-                *d = *s;
-                c += 1;
+            if consumed == 0 && block.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "PKWARE stream stopped making progress",
+                ));
             }
+
+            read += consumed;
+            let take = block.len().min(out.len() - written);
+            out[written..written + take].copy_from_slice(&block[..take]);
+            written += take;
         }
 
-        return Ok(c);
+        return Ok(written);
     }
 
     if compression_type & COMPRESSION_HUFFMAN != 0 {

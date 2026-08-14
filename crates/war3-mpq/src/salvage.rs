@@ -101,7 +101,11 @@ impl Archive {
     /// identification gets, and it is what a caller sniffing members should
     /// use: inflating a whole archive's worth of scripts and textures to read
     /// four bytes from each is the expensive way to do the same thing.
-    pub fn peek_salvaged(&mut self, member: &SalvagedMember, want: usize) -> Result<Vec<u8>, Error> {
+    pub fn peek_salvaged(
+        &mut self,
+        member: &SalvagedMember,
+        want: usize,
+    ) -> Result<Vec<u8>, Error> {
         if want == 0 || self.sector_size == 0 {
             return Ok(Vec::new());
         }
