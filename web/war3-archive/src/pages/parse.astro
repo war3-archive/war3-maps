@@ -169,8 +169,9 @@ const SECTIONS = [
       .parse .shot { display: grid; gap: 6px; justify-items: center; margin: 0; }
       .parse .shot img, .parse .shot canvas {
         image-rendering: pixelated; background: #0d100e;
-        border: 1px solid #39413a; border-radius: 8px; max-width: 320px; height: auto;
+        border: 1px solid #39413a; border-radius: 8px; max-width: 100%;
       }
+      .parse .shot img { max-width: 320px; height: auto; }
       .parse .shot figcaption { color: #8a9287; font: 500 12px/1.4 ui-monospace, monospace; }
 
       .parse .filter {

@@ -164,16 +164,32 @@ function renderOverview(data: MapMetadata, file: { name: string; size: number })
   const parts: Node[] = [];
 
   // The minimap gets the mmp icons drawn over it, which is the one view the
-  // catalog cannot show.
+  // catalog cannot show. Painting it can fail — a canvas that never resolves
+  // leaves an empty card — so the plain image takes over when it does.
   const minimap = data.images?.find((i) => isMinimapImage(i.filename));
   if (minimap) {
     const canvas = el("canvas");
-    const figure = el("figure", "shot");
-    figure.append(canvas, el("figcaption", null, "小地图 + war3map.mmp 图标"));
-    parts.push(card("小地图", figure));
-    void paintMinimapCover(canvas, minimap.data_url, buildOverlayIcons(data)).catch((e) =>
-      console.error(e),
+    canvas.width = 256;
+    canvas.height = 256;
+    const icons = buildOverlayIcons(data);
+    const caption = el(
+      "figcaption",
+      null,
+      icons.length ? `小地图 + ${icons.length} 个 war3map.mmp 图标` : "小地图",
     );
+    const figure = el("figure", "shot");
+    figure.append(canvas, caption);
+    parts.push(card("小地图", figure));
+    void paintMinimapCover(canvas, minimap.data_url, icons, 320).catch((error) => {
+      console.error(error);
+      const fallback = el("img") as HTMLImageElement;
+      fallback.src = minimap.data_url;
+      fallback.alt = minimap.filename;
+      canvas.replaceWith(fallback);
+      caption.textContent = `小地图（图标叠加失败：${
+        error instanceof Error ? error.message : String(error)
+      }）`;
+    });
   }
 
   parts.push(
