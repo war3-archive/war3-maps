@@ -38,10 +38,11 @@ const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as
 const drop = $<HTMLElement>("#drop");
 const input = $<HTMLInputElement>("#file");
 const status = $<HTMLElement>("#status");
-const tabs = $<HTMLElement>("#tabs");
-const panels = $<HTMLElement>("#panels");
+const secnav = $<HTMLElement>("#secnav");
+const sections = $<HTMLElement>("#sections");
 
 let ready = false;
+let watching = false;
 
 function setStatus(text: string, kind: "" | "ok" | "err" = "") {
   status.textContent = text;
@@ -62,9 +63,9 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 function card(title: string, ...body: Node[]): HTMLElement {
-  const section = el("section", "pcard");
-  section.append(el("h2", null, title), ...body);
-  return section;
+  const box = el("div", "pcard");
+  box.append(el("h3", null, title), ...body);
+  return box;
 }
 
 /** Definition list, skipping rows with nothing to say. */
@@ -72,7 +73,10 @@ function kv(pairs: Array<[string, unknown]>): HTMLElement {
   const list = el("dl", "kv");
   for (const [term, value] of pairs) {
     if (value === null || value === undefined || value === "" || value === "—") continue;
-    list.append(el("dt", null, term), el("dd", null, value));
+    const dd = el("dd");
+    if (value instanceof Node) dd.append(value);
+    else dd.textContent = String(value);
+    list.append(el("dt", null, term), dd);
   }
   return list;
 }
@@ -135,7 +139,7 @@ function filterable(
 }
 
 function swatch(color: string, label: string): HTMLElement {
-  const span = el("span");
+  const span = el("span", "chip");
   const dot = el("span", "swatch");
   dot.style.background = color;
   span.append(dot, document.createTextNode(label));
@@ -145,11 +149,11 @@ function swatch(color: string, label: string): HTMLElement {
 // ------------------------------------------------------------------- panels
 
 function panelFor(id: string): HTMLElement {
-  return panels.querySelector(`[data-panel="${id}"]`) as HTMLElement;
+  return sections.querySelector(`[data-panel="${id}"]`) as HTMLElement;
 }
 
 function setCount(id: string, count: number | string | null) {
-  const node = tabs.querySelector(`[data-count="${id}"]`) as HTMLElement;
+  const node = secnav.querySelector(`[data-count="${id}"]`) as HTMLElement;
   node.textContent = count === null || count === "" ? "" : `(${count})`;
 }
 
@@ -222,10 +226,7 @@ function renderOverview(data: MapMetadata, file: { name: string; size: number })
 
     const fog = bgraToCss(info.fog_color);
     const water = bgraToCss(info.water_vertex_color);
-    if (fog || water || info.fog_density != null) {
-      const colors = el("div", "chips");
-      if (fog) colors.append(swatch(fog, `迷雾 ${fog}`));
-      if (water) colors.append(swatch(water, `水面 ${water}`));
+    if (fog || water || info.fog_density != null || info.fog_style != null) {
       parts.push(
         card(
           "环境",
@@ -236,8 +237,9 @@ function renderOverview(data: MapMetadata, file: { name: string; size: number })
               info.fog_height ? `${info.fog_height[0]} → ${info.fog_height[1]}` : null,
             ],
             ["迷雾浓度", info.fog_density],
+            ["迷雾颜色", fog ? swatch(fog, fog) : null],
+            ["水面颜色", water ? swatch(water, water) : null],
           ]),
-          colors,
         ),
       );
     }
@@ -479,22 +481,42 @@ function renderJson(data: MapMetadata) {
   host.replaceChildren(card("原始解析结果", pre));
 }
 
-// --------------------------------------------------------------------- tabs
+// --------------------------------------------------------------- section nav
 
-function selectTab(id: string) {
-  for (const button of tabs.querySelectorAll<HTMLElement>(".tab")) {
-    const selected = button.dataset.tab === id;
-    button.setAttribute("aria-selected", String(selected));
-  }
-  for (const panel of panels.querySelectorAll<HTMLElement>(".panel")) {
-    panel.hidden = panel.dataset.panel !== id;
+/** Mark one nav link as the section being read. */
+function markCurrent(id: string) {
+  for (const link of secnav.querySelectorAll<HTMLElement>(".seclink")) {
+    const current = link.dataset.link === id;
+    if (current) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
   }
 }
 
-tabs.addEventListener("click", (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLElement>(".tab");
-  if (button?.dataset.tab) selectTab(button.dataset.tab);
-});
+/**
+ * Highlight whichever section the reader is in.
+ *
+ * The observer fires on any crossing, so the current section is chosen by
+ * looking at everything intersecting rather than by trusting the entry that
+ * happened to fire — with a sticky bar at the top, two sections are often in
+ * view at once and only the topmost one should win.
+ */
+function watchSections() {
+  const all = [...sections.querySelectorAll<HTMLElement>(".section")];
+  const visible = new Set<HTMLElement>();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const node = entry.target as HTMLElement;
+        if (entry.isIntersecting) visible.add(node);
+        else visible.delete(node);
+      }
+      const first = all.find((node) => visible.has(node));
+      if (first?.dataset.section) markCurrent(first.dataset.section);
+    },
+    { rootMargin: "-70px 0px -60% 0px", threshold: 0 },
+  );
+  for (const node of all) observer.observe(node);
+}
 
 // --------------------------------------------------------------------- input
 
@@ -507,8 +529,8 @@ async function handleFile(file: File) {
     const data = parseMap(bytes);
     if (!data) {
       setStatus(`解析失败：${file.name} 不是可读的 War3 地图 / MPQ。`, "err");
-      tabs.hidden = true;
-      panels.hidden = true;
+      secnav.hidden = true;
+      sections.hidden = true;
       return;
     }
 
@@ -521,9 +543,13 @@ async function handleFile(file: File) {
     renderFiles(data);
     renderJson(data);
 
-    tabs.hidden = false;
-    panels.hidden = false;
-    selectTab("overview");
+    secnav.hidden = false;
+    sections.hidden = false;
+    markCurrent("overview");
+    if (!watching) {
+      watchSections();
+      watching = true;
+    }
 
     const name = stripColorCodes(data.map_info?.name ?? data.header.name ?? "") || file.name;
     setStatus(`已解析：${name}`, "ok");

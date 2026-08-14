@@ -3,7 +3,7 @@ import Analytics from "../components/Analytics.astro";
 import SiteNav from "../components/SiteNav.astro";
 import "../styles/global.css";
 
-const TABS = [
+const SECTIONS = [
   ["overview", "概览"],
   ["teams", "队伍"],
   ["tech", "科技"],
@@ -39,36 +39,48 @@ const TABS = [
       </div>
     </header>
 
-    <main class="wrap parse">
-      <section id="drop" class="drop" tabindex="0" role="button" aria-label="选择地图文件">
-        <input id="file" type="file" accept=".w3x,.w3m,.w3n,.mpq" hidden />
-        <p class="drop-main">把地图文件拖到这里，或点击选择</p>
-        <p id="status" class="drop-status">正在加载解析器…</p>
-      </section>
+    <main class="parse">
+      <div class="wrap">
+        <section id="drop" class="drop" tabindex="0" role="button" aria-label="选择地图文件">
+          <input id="file" type="file" accept=".w3x,.w3m,.w3n,.mpq" hidden />
+          <p class="drop-main">把地图文件拖到这里，或点击选择</p>
+          <p id="status" class="drop-status">正在加载解析器…</p>
+        </section>
+      </div>
 
-      <nav id="tabs" class="tabs" hidden aria-label="解析结果">
-        {
-          TABS.map(([id, label]) => (
-            <button class="tab" data-tab={id} type="button">
-              {label}
-              <span class="tab-count" data-count={id} />
-            </button>
-          ))
-        }
+      <nav id="secnav" class="secnav" hidden aria-label="解析结果导航">
+        <div class="wrap secnav-inner">
+          {
+            SECTIONS.map(([id, label]) => (
+              <a class="seclink" href={`#${id}`} data-link={id}>
+                {label}
+                <span class="seccount" data-count={id} />
+              </a>
+            ))
+          }
+        </div>
       </nav>
 
-      <section id="panels" class="panels" hidden>
-        {TABS.map(([id]) => <div class="panel" data-panel={id} hidden />)}
-      </section>
+      <div id="sections" class="wrap sections" hidden>
+        {
+          SECTIONS.map(([id, label]) => (
+            <section class="section" id={id} data-section={id}>
+              <h2 class="section-head">{label}</h2>
+              <div class="section-body" data-panel={id} />
+            </section>
+          ))
+        }
+      </div>
     </main>
 
     <Analytics />
 
     <style is:global>
-      /* The panels are built by parse.ts, so Astro's scoping never reaches
-         them — these rules are global, held in by the .parse prefix. */
-      .parse { padding: 32px 0 64px; display: grid; gap: 20px; }
-      /* `display` on .tabs/.panels would otherwise win over the hidden attribute. */
+      /* The section bodies are built by parse.ts, so Astro's scoping never
+         reaches them — these rules are global, held in by the .parse prefix. */
+      html { scroll-behavior: smooth; }
+
+      .parse { padding: 32px 0 64px; }
       .parse [hidden] { display: none !important; }
 
       .parse .drop {
@@ -80,27 +92,52 @@ const TABS = [
         background: #161b17;
         transition: border-color .15s, background .15s;
       }
-      .parse .drop:hover, .parse .drop:focus-visible, .parse .drop.over { border-color: #c99e48; background: #1a2019; }
+      .parse .drop:hover, .parse .drop:focus-visible, .parse .drop.over {
+        border-color: #c99e48; background: #1a2019;
+      }
       .parse .drop-main { margin: 0 0 8px; font-weight: 600; }
       .parse .drop-status { margin: 0; color: #9aa398; font: 500 13px/1.5 ui-monospace, monospace; }
       .parse .drop-status.err { color: #e2795f; }
       .parse .drop-status.ok { color: #8fbf6a; }
 
-      .parse .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-      .parse .tab {
-        border: 1px solid #39413a; background: #161b17; color: #c8cfc4;
-        border-radius: 999px; padding: 7px 14px; cursor: pointer; font: 600 13px/1 inherit;
+      /* Sticky section nav: follows the page and tracks the section in view. */
+      .parse .secnav {
+        position: sticky; top: 0; z-index: 5; margin-top: 24px;
+        background: rgba(16, 20, 17, .92);
+        backdrop-filter: blur(8px);
+        border-block: 1px solid #39413a;
       }
-      .parse .tab[aria-selected="true"] { border-color: #c99e48; color: #e9eadf; background: #202820; }
-      .parse .tab-count { color: #8a9287; font-weight: 500; }
-      .parse .tab-count:not(:empty)::before { content: " "; }
+      .parse .secnav-inner {
+        display: flex; gap: 4px; overflow-x: auto; padding: 8px 0;
+        scrollbar-width: thin;
+      }
+      .parse .seclink {
+        flex: none; text-decoration: none; border-radius: 999px;
+        border: 1px solid transparent; padding: 6px 13px;
+        color: #9aa398; font: 600 13px/1 inherit; white-space: nowrap;
+      }
+      .parse .seclink:hover { color: #e9eadf; }
+      .parse .seclink[aria-current="true"] {
+        border-color: #c99e48; color: #e9eadf; background: #202820;
+      }
+      .parse .seccount { color: #6f7770; font-weight: 500; }
+      .parse .seccount:not(:empty)::before { content: " "; }
 
-      .parse .panel { display: grid; gap: 16px; }
+      .parse .sections { display: grid; }
+      .parse .section { scroll-margin-top: 64px; padding: 26px 0 6px; }
+      .parse .section + .section { border-top: 1px solid #2b322c; }
+      .parse .section-head { margin: 0 0 16px; font: 700 20px/1.2 inherit; color: #e9eadf; }
+      .parse .section-head::before {
+        content: ""; display: inline-block; width: 4px; height: 18px;
+        margin-right: 10px; border-radius: 2px; background: #c99e48;
+        vertical-align: -2px;
+      }
+      .parse .section-body { display: grid; gap: 16px; }
 
       .parse .pcard {
         border: 1px solid #39413a; border-radius: 12px; background: #161b17; padding: 16px 18px;
       }
-      .parse .pcard > h2 {
+      .parse .pcard > h3 {
         margin: 0 0 12px; font: 600 11px/1.2 ui-monospace, monospace;
         letter-spacing: .08em; text-transform: uppercase; color: #c99e48;
       }
@@ -124,12 +161,12 @@ const TABS = [
       .parse .tall { max-height: 460px; overflow-y: auto; }
 
       .parse .swatch {
-        display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-        margin-right: 6px; vertical-align: baseline;
+        display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+        margin-right: 6px; border: 1px solid #4a5449; vertical-align: baseline;
       }
 
       .parse .shots { display: flex; flex-wrap: wrap; gap: 14px; }
-      .parse .shot { display: grid; gap: 6px; justify-items: center; }
+      .parse .shot { display: grid; gap: 6px; justify-items: center; margin: 0; }
       .parse .shot img, .parse .shot canvas {
         image-rendering: pixelated; background: #0d100e;
         border: 1px solid #39413a; border-radius: 8px; max-width: 320px; height: auto;
@@ -144,6 +181,10 @@ const TABS = [
       .parse pre.json {
         margin: 0; max-height: 560px; overflow: auto; font-size: 12px; line-height: 1.5;
         color: #c8cfc4;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
       }
     </style>
 
