@@ -1,0 +1,13 @@
+.DS_Store
+/.vscode
+target/
+dist
+node_modules
+*.tgz
+bindings/
+.cursorignore
+out/
+playground/dist-site/
+playground/node_modules/
+tmp_conclusion.md
+*.tsbuildinfo

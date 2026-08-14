@@ -1,0 +1,37 @@
+[package]
+name = "war3parser"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+readme = "../../README.md"
+
+[dependencies]
+base64 = "0.22.1"
+flate2 = { version = "1.0.27", optional = true }
+image = { workspace = true }
+image-blp = { workspace = true }
+# Renamed dependency: the fork carries fixes for archives that map protectors
+# deliberately malform, and `[patch.crates-io]` never reaches downstream crates.
+# Floor stays at the minor version: war3parser uses no API newer than 0.9.0, so a
+# patch release of the fork must never force a war3parser release. Cargo requirements
+# are carets, so `^0.9` already picks up 0.9.4+ on a fresh resolve.
+mpq = { package = "war3-mpq", version = "0.9.6" }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = ["serde", "carve"]
+serde = ["dep:serde", "dep:serde_json"]
+# Sector-level metadata salvage for unreadable archives. Optional so that
+# name-based readers do not pull in an inflate implementation they never call.
+carve = ["dep:flate2"]

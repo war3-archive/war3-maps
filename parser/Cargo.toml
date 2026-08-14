@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/cli", "crates/wasm"]
+default-members = ["crates/core", "crates/cli"]
+
+[workspace.package]
+version = "0.5.5"
+edition = "2021"
+description = "A extractor and parser for Warcraft 3 map files"
+documentation = "https://docs.rs/war3parser"
+homepage = "https://github.com/wesleyel/war3parser"
+repository = "https://github.com/wesleyel/war3parser"
+keywords = ["warcraft3", "MPQ", "parser"]
+categories = ["wasm", "command-line-utilities"]
+license = "MIT"
+exclude = ["/test_data/"]
+readme = "README.md"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[workspace.dependencies]
+image = "0.24.3"
+image-blp = "1.2.0"
+serde = "1.0.204"
+serde_json = "1.0.135"
+thiserror = "2.0.11"
+wasm-bindgen = "0.2.100"
+serde-wasm-bindgen = "0.6.5"
+
+# Path aliases for workspace crates
+war3parser = { path = "crates/core", version = "0.5.4" }
