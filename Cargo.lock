@@ -744,7 +744,7 @@ dependencies = [
 
 [[package]]
 name = "war3parser"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "base64",
  "flate2",
@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "war3parser-cli"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -767,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "war3parser-wasm"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "js-sys",
  "serde",
