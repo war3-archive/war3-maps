@@ -1,4 +1,5 @@
-# Manager tooling. Parsing lives upstream in war3parser.
+# Workspace tooling: the MPQ reader, the parser, the manager CLI and the site
+# all live here now, sharing one version.
 
 build:
     cargo build -p war3-manager-cli
@@ -13,6 +14,10 @@ lint:
 
 test:
     cargo test --workspace --all-targets
+
+# Bump every crate together and publish bottom-up. Needs `cargo install cargo-release`.
+release level:
+    cargo release {{level}} --workspace
 
 # Refresh an existing dataset after an upstream parser fix.
 rescan dataset:

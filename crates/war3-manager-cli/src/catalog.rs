@@ -960,7 +960,8 @@ mod tests {
         assert!(derived.parse_error.is_some());
     }
 
-    /// An unopenable archive with a `w3i` still sitting in its sector data.
+    /// An archive whose tables are noise but whose members can still be walked,
+    /// which is what a protected map looks like and what `carve` recovers from.
     fn unreadable_archive_with_carvable_w3i(header_name: &str, map_name: &str) -> Vec<u8> {
         use flate2::write::ZlibEncoder;
         use flate2::Compression;
@@ -973,7 +974,6 @@ mod tests {
         bytes.extend_from_slice(&1u32.to_le_bytes());
         bytes.extend_from_slice(&8u32.to_le_bytes());
         bytes.resize(512, 0);
-        bytes.extend_from_slice(&[0xAB; 1024]);
 
         let mut w3i = Vec::new();
         w3i.extend(25u32.to_le_bytes());
@@ -987,8 +987,31 @@ mod tests {
 
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(&w3i).unwrap();
-        bytes.push(0x02);
-        bytes.extend(encoder.finish().unwrap());
+        let mut body = vec![0x02u8];
+        body.extend(encoder.finish().unwrap());
+
+        // One member: its own sector offset table, then the single sector.
+        let mut member = Vec::new();
+        member.extend_from_slice(&8u32.to_le_bytes());
+        member.extend_from_slice(&(8 + body.len() as u32).to_le_bytes());
+        member.extend_from_slice(&body);
+
+        let hash_pos = 0x20 + member.len() as u32;
+        let mut mpq = Vec::new();
+        mpq.extend_from_slice(b"MPQ\x1a");
+        mpq.extend_from_slice(&0x20u32.to_le_bytes());
+        mpq.extend_from_slice(&(hash_pos + 32).to_le_bytes());
+        mpq.extend_from_slice(&0u16.to_le_bytes());
+        mpq.extend_from_slice(&3u16.to_le_bytes());
+        mpq.extend_from_slice(&hash_pos.to_le_bytes());
+        mpq.extend_from_slice(&(hash_pos + 16).to_le_bytes());
+        mpq.extend_from_slice(&1u32.to_le_bytes());
+        mpq.extend_from_slice(&1u32.to_le_bytes());
+        mpq.extend_from_slice(&member);
+        // Where the tables were, a protector leaves noise behind.
+        mpq.extend((0..32u8).map(|i| i.wrapping_mul(31).wrapping_add(7)));
+
+        bytes.extend_from_slice(&mpq);
         bytes
     }
 

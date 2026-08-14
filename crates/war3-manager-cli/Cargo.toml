@@ -2,20 +2,20 @@
 name = "war3-manager-cli"
 version.workspace = true
 edition.workspace = true
-description.workspace = true
+description = "Archive management for Warcraft III maps: catalog, dataset and release workflow"
 homepage.workspace = true
 repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["warcraft3", "archive", "catalog"]
+categories = ["command-line-utilities"]
 license.workspace = true
-readme = "../../README.md"
+readme = "README.md"
 
 [[bin]]
 name = "war3-manager"
 path = "src/main.rs"
 
 [dependencies]
-war3parser = { workspace = true }
+war3parser = { workspace = true, features = ["serde", "carve"] }
 clap = { version = "4.5.9", features = ["derive"] }
 anyhow = "1.0.95"
 serde = { workspace = true, features = ["derive"] }

@@ -1,0 +1,14 @@
+# One version for every crate in the workspace, moved together.
+#
+# `cargo release` publishes bottom-up in dependency order, which is the
+# constraint that used to be enforced by hand across four repositories: a crate
+# can only depend on a version that already exists on crates.io, and published
+# versions are immutable.
+shared-version = true
+consolidate-commits = true
+tag-name = "v{{version}}"
+tag-message = "war3-archive {{version}}"
+pre-release-commit-message = "Release {{version}}"
+# The site is not a crate and has no reason to gate a crate release.
+publish = true
+push = true

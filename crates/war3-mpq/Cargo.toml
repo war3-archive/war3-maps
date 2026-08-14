@@ -1,6 +1,6 @@
 [package]
 name = "war3-mpq"
-version = "0.9.6"
+version.workspace = true
 authors = [
     "Michael Sierks <msierks117@gmail.com>",
     "wesleyel <48174882+wesleyel@users.noreply.github.com>",
@@ -8,7 +8,7 @@ authors = [
 license = "MIT/Apache-2.0"
 description = "Read MPQ archives, hardened against protected Warcraft III maps (fork of mpq 0.8.1)"
 documentation = "https://docs.rs/war3-mpq"
-repository = "https://github.com/war3-archive/mpq-rust"
+repository.workspace = true
 readme = "README.md"
 keywords = ["mpq", "archive", "warcraft3"]
 categories = ["parser-implementations"]

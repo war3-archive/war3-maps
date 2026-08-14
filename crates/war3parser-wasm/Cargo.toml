@@ -2,14 +2,14 @@
 name = "war3parser-wasm"
 version.workspace = true
 edition.workspace = true
-description.workspace = true
-documentation.workspace = true
+description = "WebAssembly bindings for the war3parser Warcraft 3 map parser"
+documentation = "https://docs.rs/war3parser"
 homepage.workspace = true
 repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["warcraft3", "MPQ", "parser"]
+categories = ["wasm"]
 license.workspace = true
-readme = "../../README.md"
+readme = "../war3parser/README.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

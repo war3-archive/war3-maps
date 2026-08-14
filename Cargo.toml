@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+# wasm needs its own target, so keep it out of a bare `cargo build`.
+default-members = [
+    "crates/war3-mpq",
+    "crates/war3parser",
+    "crates/war3parser-cli",
+    "crates/war3-manager-cli",
+]
+
+# One version across the whole workspace, moved by `cargo release`. The crates
+# used to ship on their own cadence from four repositories; sharing a number
+# costs a few empty releases and buys an unambiguous answer to "which parser is
+# this manager built against".
+[workspace.package]
+version = "0.10.0"
+edition = "2021"
+homepage = "https://github.com/war3-archive/war3-maps"
+repository = "https://github.com/war3-archive/war3-maps"
+license = "MIT"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# Bulk cataloging must survive malformed third-party maps. This profile keeps
+# release optimizations while allowing the CLI's per-file catch_unwind boundary
+# to record a metadata error and continue with the remaining files.
+[profile.catalog]
+inherits = "release"
+panic = "unwind"
+
+[workspace.dependencies]
+image = "0.24.3"
+image-blp = "1.2.0"
+serde = "1.0.204"
+serde_json = "1.0.135"
+thiserror = "2.0.11"
+wasm-bindgen = "0.2.100"
+serde-wasm-bindgen = "0.6.5"
+
+# Workspace crates carry both a path and a version: the path is what this
+# workspace builds against, the version is what a published crate resolves to.
+mpq = { package = "war3-mpq", path = "crates/war3-mpq", version = "0.10.0" }
+war3parser = { path = "crates/war3parser", version = "0.10.0" }
