@@ -123,15 +123,18 @@ python3 -m venv .venv-hf
 .venv-hf/bin/pip install -r deploy/hf/requirements.txt
 ```
 
+认证走 `hf auth login`（脚本会读取它存下的 token）；也可以用 `HF_TOKEN=hf_...`
+或 `--token` 覆盖。`--dry-run` 只做本地校验，不需要认证。
+
 先做本地校验，再正式上传：
 
 ```bash
-HF_TOKEN=hf_... .venv-hf/bin/python deploy/hf/upload_dataset.py \
+.venv-hf/bin/python deploy/hf/upload_dataset.py \
   /path/to/war3-maps-dataset \
   --repo-id magicwenli/war3-maps \
   --dry-run
 
-HF_TOKEN=hf_... .venv-hf/bin/python deploy/hf/upload_dataset.py \
+.venv-hf/bin/python deploy/hf/upload_dataset.py \
   /path/to/war3-maps-dataset \
   --repo-id magicwenli/war3-maps
 ```

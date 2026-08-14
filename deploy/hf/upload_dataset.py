@@ -84,9 +84,13 @@ def main() -> None:
     print(f"validated {len(maps)} unique maps ({total} bytes) in {root}")
     if args.dry_run:
         return
-    if not args.token:
-        raise SystemExit("HF_TOKEN is required (or pass --token)")
-    from huggingface_hub import HfApi
+    from huggingface_hub import HfApi, get_token
+
+    # `hf auth login` stores a token of its own, so only insist on one when the
+    # library cannot find any: requiring HF_TOKEN would reject a machine that is
+    # already logged in.
+    if not args.token and not get_token():
+        raise SystemExit("not authenticated: run `hf auth login`, set HF_TOKEN, or pass --token")
 
     api = HfApi(token=args.token)
     if not args.no_create:
