@@ -123,7 +123,11 @@ const SECTIONS = [
       .parse .seccount { color: #6f7770; font-weight: 500; }
       .parse .seccount:not(:empty)::before { content: " "; }
 
+      /* Grid items default to min-width:auto, so one wide table stretches the
+         track past the viewport and drags the centred figures out of sight. */
       .parse .sections { display: grid; }
+      .parse .sections, .parse .section, .parse .section-body, .parse .pcard { min-width: 0; }
+      .parse .section-body > * { min-width: 0; max-width: 100%; }
       .parse .section { scroll-margin-top: 64px; padding: 26px 0 6px; }
       .parse .section + .section { border-top: 1px solid #2b322c; }
       .parse .section-head { margin: 0 0 16px; font: 700 20px/1.2 inherit; color: #e9eadf; }
@@ -144,7 +148,7 @@ const SECTIONS = [
 
       .parse .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
       .parse .kv dt { color: #8a9287; font-size: 13px; }
-      .parse .kv dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+      .parse .kv dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
 
       .parse .chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .parse .chip {
@@ -155,9 +159,10 @@ const SECTIONS = [
       .parse table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
       .parse table.grid th, .parse table.grid td {
         text-align: left; padding: 6px 10px; border-bottom: 1px solid #2b322c; vertical-align: top;
+        overflow-wrap: anywhere;
       }
       .parse table.grid th { color: #8a9287; font-weight: 600; white-space: nowrap; }
-      .parse .scroll { overflow-x: auto; }
+      .parse .scroll { overflow-x: auto; max-width: 100%; }
       .parse .tall { max-height: 460px; overflow-y: auto; }
 
       .parse .swatch {
@@ -181,7 +186,7 @@ const SECTIONS = [
 
       .parse pre.json {
         margin: 0; max-height: 560px; overflow: auto; font-size: 12px; line-height: 1.5;
-        color: #c8cfc4;
+        color: #c8cfc4; white-space: pre-wrap; overflow-wrap: anywhere;
       }
 
       @media (prefers-reduced-motion: reduce) {
