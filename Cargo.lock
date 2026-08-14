@@ -745,9 +745,9 @@ dependencies = [
 
 [[package]]
 name = "war3-mpq"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42b00a6518f9750877bd467a694871092601c56a878a8cc5230af89042870890"
+checksum = "86197c7265e4ba67a7f781376afb8f2aa5bc0301db86731927844a49ee7149db"
 dependencies = [
  "adler32",
  "byteorder",
