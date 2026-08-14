@@ -31,6 +31,15 @@ use std::io::{prelude::*, Error, ErrorKind, SeekFrom};
 /// dword from allocating.
 const MAX_SECTOR_TABLE: u32 = 0x4000;
 
+/// Ceiling on how many members the walk will follow.
+///
+/// Without it a large archive full of noise is a trap: garbage keeps looking
+/// enough like a sector offset table to advance the walk by a few bytes at a
+/// time, and each step allocates and validates an offset list. The largest
+/// block table in the 10365-map corpus holds 848 entries, so this is far above
+/// anything real while keeping a pathological file bounded.
+const MAX_MEMBERS: usize = 4096;
+
 /// A member located by walking the data region rather than by a table lookup.
 #[derive(Debug, Clone)]
 pub struct SalvagedMember {
@@ -67,6 +76,9 @@ impl Archive {
         while let Some(member) = self.member_at(buf, pos, end) {
             pos += u64::from(member.packed_size);
             members.push(member);
+            if members.len() >= MAX_MEMBERS {
+                break;
+            }
         }
 
         members
@@ -278,6 +290,26 @@ mod tests {
         assert_eq!(members.len(), 1);
         assert_eq!(members[0].packed_size, by_name.packed_size());
         assert_eq!(archive.read_salvaged(&members[0]).unwrap(), expected);
+    }
+
+    /// Noise that keeps looking like a short sector table must not walk forever.
+    #[test]
+    fn the_walk_is_bounded() {
+        // 0x08 0x00 0x00 0x00 reads as a one-sector member eight bytes long, so
+        // a file full of it advances the walk eight bytes at a time.
+        let mut archive = archive_with_member(b"payload", true);
+        archive.truncate(0x20);
+        for _ in 0..(MAX_MEMBERS * 2) {
+            archive.extend_from_slice(&8u32.to_le_bytes());
+            archive.extend_from_slice(&8u32.to_le_bytes());
+        }
+        // The data region runs to the end of the file, so the walk has no
+        // table position to stop at either.
+        let len = archive.len() as u32 - 16;
+        archive[0x10..0x14].copy_from_slice(&len.to_le_bytes());
+
+        let archive = Archive::load(archive).unwrap();
+        assert_eq!(archive.salvage_members().len(), MAX_MEMBERS);
     }
 
     #[test]
