@@ -17,7 +17,7 @@ Fixes in this fork, each a separate commit:
 | Short-buffer decrypt guard | `data.len() - 3` underflows on buffers under four bytes |
 | Fallback past bogus user data headers | A fake user data header points nowhere and aborts the open |
 | Truncated hash tables read in full | A table running past EOF is rounded down to a power of two, dropping the entries above it |
-| Guarded sector size shift | A shift of 65292 panics a debug build |
+| Sector size shift wrapped like Storm | A shift of 65295 panics a debug build; Storm shifts in a register and reads the archive |
 
 Over a 10365-map archive these took readable maps from 9218 to 9746.
 

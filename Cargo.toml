@@ -1,6 +1,6 @@
 [package]
 name = "war3-mpq"
-version = "0.9.5"
+version = "0.9.6"
 authors = [
     "Michael Sierks <msierks117@gmail.com>",
     "wesleyel <48174882+wesleyel@users.noreply.github.com>",

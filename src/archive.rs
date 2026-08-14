@@ -308,11 +308,14 @@ impl Archive {
             ));
         }
 
-        // Two maps in the corpus carry a sector shift of 65292; shifting by that
-        // panics a debug build and silently masks to 5 bits in release. A zero
-        // sector size is already handled as "cannot read this file".
+        // Maps in the corpus carry sector shifts of 65283 and 65295, which panic
+        // a debug build. Storm shifts these in a 32-bit register, where x86
+        // takes the low five bits of the count — so 65295 means a 16 MB sector,
+        // and those archives read correctly. Mirror that rather than rejecting
+        // them; a count that still overflows leaves a zero sector size, which
+        // the readers already treat as "cannot read this file".
         let sector_size = 512u32
-            .checked_shl(u32::from(header.sector_size_shift))
+            .checked_shl(u32::from(header.sector_size_shift) & 0x1F)
             .unwrap_or(0);
 
         Ok(Archive {
@@ -727,6 +730,19 @@ mod tests {
 
         let opened = Archive::load(archive).expect("32-bit wrap back into the file is valid");
         assert_eq!(opened.offset, 0x200);
+    }
+
+    #[test]
+    fn a_sector_shift_past_31_wraps_the_way_x86_does() {
+        // Three maps in the corpus carry shifts of 65283/65295. Storm shifts in
+        // a register, so 65295 is a shift of 15, not a rejected archive.
+        let mut archive = vec![0u8; 0x400];
+        let mut hdr = header(0x20, 0x20);
+        hdr[14..16].copy_from_slice(&65_295u16.to_le_bytes());
+        archive[0x200..0x220].copy_from_slice(&hdr);
+
+        let opened = Archive::load(archive).expect("a wrapped shift is still a shift");
+        assert_eq!(opened.sector_size, 512 << 15);
     }
 
     #[test]
