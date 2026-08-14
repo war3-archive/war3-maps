@@ -33,15 +33,15 @@ const FILE_SECTOR_CRC: u32 = 0x04000000;
 const FILE_COMPRESS_MASK: u32 = 0x0000FF00;
 
 #[derive(Debug)]
-struct Header {
+pub(crate) struct Header {
     _magic: [u8; 4],
     _header_size: u32,
     _archive_size: u32,
     _format_version: u16, // 0 = Original, 1 = Extended
     sector_size_shift: u16,
-    hash_table_offset: u32,
+    pub(crate) hash_table_offset: u32,
     block_table_offset: u32,
-    hash_table_count: u32,
+    pub(crate) hash_table_count: u32,
     block_table_count: u32,
     // Header v2
     _extended_offset: u64,
@@ -169,13 +169,13 @@ fn is_fake_mpq_header(header_offset: u64, header: &Header, file_size: u64) -> bo
 }
 
 pub struct Archive {
-    file: Cursor<Vec<u8>>,
-    header: Header,
+    pub(crate) file: Cursor<Vec<u8>>,
+    pub(crate) header: Header,
     user_data_header: Option<UserDataHeader>,
     hash_table: Vec<Hash>,
     block_table: Vec<Block>,
-    sector_size: u32,
-    offset: u64,
+    pub(crate) sector_size: u32,
+    pub(crate) offset: u64,
 }
 
 impl Archive {
@@ -271,15 +271,11 @@ impl Archive {
                 "MPQ hash table lies outside the archive",
             ));
         }
-        // The bucket index is masked with `len - 1`, so a truncated hash table
-        // must stay a power of two or every lookup would land in the wrong slot.
-        let hash_count = if u64::from(header.hash_table_count) <= hash_room {
-            header.hash_table_count
-        } else if hash_room.is_power_of_two() {
-            hash_room as u32
-        } else {
-            (hash_room.next_power_of_two() >> 1) as u32
-        };
+        // Read what is there, but keep the declared count: Storm masks the
+        // bucket index with `dwHashTableSize - 1`, so shrinking the count to fit
+        // the file would change the mask and send every lookup to the wrong
+        // bucket. Slots past the end of the file are simply unreachable.
+        let hash_count = header.hash_table_count.min(hash_room as u32);
         let mut hash_buff: Vec<u8> = vec![0; (hash_count as usize) * mem::size_of::<Hash>()];
         let mut hash_table: Vec<Hash> = Vec::with_capacity(hash_count as usize);
 
@@ -312,7 +308,12 @@ impl Archive {
             ));
         }
 
-        let sector_size = 512 << header.sector_size_shift;
+        // Two maps in the corpus carry a sector shift of 65292; shifting by that
+        // panics a debug build and silently masks to 5 bits in release. A zero
+        // sector size is already handled as "cannot read this file".
+        let sector_size = 512u32
+            .checked_shl(u32::from(header.sector_size_shift))
+            .unwrap_or(0);
 
         Ok(Archive {
             file,
@@ -329,10 +330,15 @@ impl Archive {
         if self.hash_table.is_empty() {
             return Err(Error::new(ErrorKind::InvalidData, "empty MPQ hash table"));
         }
-        // The header count and the table actually read can disagree on a
-        // truncated archive; the mask has to follow the table we hold.
-        let start_index =
-            (hash_string(filename, 0x0) & (self.hash_table.len() as u32 - 1)) as usize;
+        // Storm masks with the *declared* size, which protectors inflate past
+        // what the file holds. Keep its arithmetic and let the slots we do not
+        // have behave as empty, rather than remasking against a shorter table.
+        let declared = if self.header.hash_table_count == 0 {
+            self.hash_table.len() as u32
+        } else {
+            self.header.hash_table_count
+        };
+        let start_index = (hash_string(filename, 0x0) & declared.wrapping_sub(1)) as usize;
         let mut hash;
 
         let hash_a = hash_string(filename, 0x100);
@@ -505,6 +511,11 @@ pub struct File {
 impl File {
     pub fn size(&self) -> u32 {
         self.block.unpacked_size
+    }
+
+    /// Bytes the file occupies inside the archive.
+    pub fn packed_size(&self) -> u32 {
+        self.block.packed_size
     }
 
     // read data from file

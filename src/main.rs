@@ -41,6 +41,48 @@ fn list(archive_file_name: &str) {
     io::stdout().write_all(&buf).unwrap();
 }
 
+/// Walk the data region and report every member found, for archives whose
+/// tables are unusable. Prints one line per member: index, offset, packed size,
+/// sectors, and how much it decompresses to (or why it does not).
+fn salvage(archive_file_name: &str) {
+    let mut archive = match Archive::open(archive_file_name) {
+        Ok(v) => v,
+        Err(e) => {
+            println!("{}", e);
+            process::exit(1);
+        }
+    };
+
+    let members = archive.salvage_members();
+    for (i, member) in members.iter().enumerate() {
+        match archive.read_salvaged(member) {
+            // Names live only in the hash table, so the leading bytes are all a
+            // caller has to identify a salvaged member by.
+            Ok(data) => println!(
+                "{:4} offset={:#x} packed={} sectors={} unpacked={} magic={}",
+                i,
+                member.offset,
+                member.packed_size,
+                member.sector_count(),
+                data.len(),
+                data.iter()
+                    .take(4)
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            ),
+            Err(e) => println!(
+                "{:4} offset={:#x} packed={} sectors={} error={}",
+                i,
+                member.offset,
+                member.packed_size,
+                member.sector_count(),
+                e
+            ),
+        }
+    }
+    println!("{} member(s)", members.len());
+}
+
 fn main() {
     let args: Vec<_> = env::args().collect();
     let program = args[0].clone();
@@ -49,6 +91,11 @@ fn main() {
     opts.optopt("x", "extract", "extract file from archive", "FILE");
     opts.optflag("o", "to-stdout", "extract file to standard output");
     opts.optflag("l", "list", "print (listfile) contents");
+    opts.optflag(
+        "s",
+        "salvage",
+        "walk the data region and list members without using the tables",
+    );
     opts.optflag("v", "version", "print version info");
     opts.optflag("h", "help", "print this help menu");
 
@@ -76,6 +123,11 @@ fn main() {
 
     if matches.opt_present("list") {
         list(&archive_file_name);
+        return;
+    }
+
+    if matches.opt_present("salvage") {
+        salvage(&archive_file_name);
         return;
     }
 

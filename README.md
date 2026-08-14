@@ -16,8 +16,19 @@ Fixes in this fork, each a separate commit:
 | Circular hash probing | Probing stops at the end of the table instead of wrapping, hiding files |
 | Short-buffer decrypt guard | `data.len() - 3` underflows on buffers under four bytes |
 | Fallback past bogus user data headers | A fake user data header points nowhere and aborts the open |
+| Truncated hash tables read in full | A table running past EOF is rounded down to a power of two, dropping the entries above it |
+| Guarded sector size shift | A shift of 65292 panics a debug build |
 
 Over a 10365-map archive these took readable maps from 9218 to 9746.
+
+Beyond the name-based path, two salvage entry points read archives whose tables
+are gone entirely — see [docs/PROTECTED_MAPS.md](docs/PROTECTED_MAPS.md):
+
+- `Archive::salvage_members` walks the data region member by member, using each
+  member's own sector offset table instead of the block table. `war3-mpq -s FILE`
+  prints what it finds.
+- `carve::carve_sectors` scans raw bytes for the shape of a zlib MPQ sector, for
+  archives whose member chain is broken too.
 
 The API is unchanged from upstream, so `use mpq::…` keeps working through a
 renamed dependency:
