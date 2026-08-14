@@ -15,6 +15,8 @@ const HEADER_SIZE_V1: usize = 0x20;
 //const HEADER_SIZE_V3: usize = 0x44;
 //const HEADER_SIZE_V4: usize = 0xD0;
 const USER_HEADER_SIZE: usize = 16;
+/// StormLib stops the 0x200 header walk after ~128 MB.
+const HEADER_SEARCH_LIMIT: u64 = 0x0800_0000;
 
 const ID_MPQA: &[u8] = b"MPQ\x1A";
 const ID_MPQB: &[u8] = b"MPQ\x1B";
@@ -22,6 +24,8 @@ const ID_MPQB: &[u8] = b"MPQ\x1B";
 const FILE_IMPLODE: u32 = 0x00000100; // implode method by pkware compression library
 const FILE_COMPRESS: u32 = 0x00000200; // compress methods by multiple methods
 const FILE_ENCRYPTED: u32 = 0x00010000; // file is encrypted
+/// StormLib `MPQ_BLOCK_INDEX`: protectors set high bits on `dwBlockIndex`.
+const BLOCK_INDEX_MASK: u32 = 0x0FFF_FFFF;
 const FILE_FIX_KEY: u32 = 0x00020000; // file decryption key is altered according to position of file in archive
 const FILE_PATCH_FILE: u32 = 0x00100000; // file is a patch file. file data begins with patchinfo struct
 const FILE_SINGLE_UNIT: u32 = 0x01000000; // file is stored as single unit
@@ -153,6 +157,17 @@ fn table_start(header_offset: u64, table_offset: u32, total: u64) -> u64 {
     }
 }
 
+/// StormLib `ConvertMpqHeaderToFormat4` rejects a v1 header when the 32-bit
+/// wrap of `header + {hash,block}TablePos` lands past EOF, then keeps scanning.
+/// Game Storm.dll does not: it takes the first `MPQ\x1A` with `dwHeaderSize >=
+/// 0x20`. Skipping the fake header is what finds a later real archive on
+/// maps that prepend a decoy at 0x200.
+fn is_fake_mpq_header(header_offset: u64, header: &Header, file_size: u64) -> bool {
+    let hash_pos = (header_offset as u32).wrapping_add(header.hash_table_offset);
+    let block_pos = (header_offset as u32).wrapping_add(header.block_table_offset);
+    u64::from(hash_pos) > file_size || u64::from(block_pos) > file_size
+}
+
 pub struct Archive {
     file: Cursor<Vec<u8>>,
     header: Header,
@@ -177,14 +192,37 @@ impl Archive {
         let mut offset: u64 = 0;
         let mut user_data_header = None;
         let mut file = Cursor::new(buf);
+        let total = file.get_ref().len() as u64;
 
         loop {
+            if offset >= HEADER_SEARCH_LIMIT || offset.saturating_add(HEADER_SIZE_V1 as u64) > total
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "no MPQ header with in-archive tables",
+                ));
+            }
+
             file.seek(SeekFrom::Start(offset))?;
 
             file.read_exact(&mut buffer)?;
 
             if buffer.starts_with(ID_MPQA) {
-                break;
+                // Warcraft III's Storm.dll (Frozen Throne build, ordinal 266)
+                // accepts a header only when dwHeaderSize >= 0x20; a smaller
+                // size is treated as a decoy and the 0x200 scan continues.
+                // Huge garbage sizes (Spazzler etc.) still pass this check.
+                let header_size = LittleEndian::read_u32(&buffer[0x04..]);
+                if header_size >= HEADER_SIZE_V1 as u32 {
+                    let candidate = Header::new(&buffer);
+                    // StormLib additionally drops headers whose 32-bit table
+                    // positions sit past EOF (ERROR_FAKE_MPQ_HEADER) and keeps
+                    // walking. That is how a decoy at 0x200 loses to a real
+                    // archive later in the file.
+                    if !is_fake_mpq_header(offset, &candidate, total) {
+                        break;
+                    }
+                }
             }
 
             if buffer.starts_with(ID_MPQB) {
@@ -202,10 +240,13 @@ impl Archive {
                     && probe.starts_with(ID_MPQA);
 
                 if landed {
-                    buffer = probe;
-                    offset = candidate;
-                    user_data_header = Some(header);
-                    break;
+                    let landed_header = Header::new(&probe);
+                    if !is_fake_mpq_header(candidate, &landed_header, total) {
+                        buffer = probe;
+                        offset = candidate;
+                        user_data_header = Some(header);
+                        break;
+                    }
                 }
             }
 
@@ -213,7 +254,6 @@ impl Archive {
         }
 
         let header = Header::new(&buffer);
-        let total = file.get_ref().len() as u64;
 
         // Table sizes come from the header and are routinely inflated by map
         // protectors: a block count of 33410 in a 1.7 MB file makes a reader
@@ -310,9 +350,11 @@ impl Archive {
             if hash.hash_a == hash_a && hash.hash_b == hash_b {
                 // The block index comes straight from the archive: a protected
                 // or corrupt map can point it past the end of the block table.
+                // StormLib keeps only the low 28 bits — W3x protectors stash
+                // flags in the top nibble (0x800003F2, 0x400003BE, …).
                 let block =
                     self.block_table
-                        .get(hash.block_index as usize)
+                        .get((hash.block_index & BLOCK_INDEX_MASK) as usize)
                         .ok_or_else(|| {
                             Error::new(
                         ErrorKind::InvalidData,
@@ -618,5 +660,101 @@ impl File {
             .unwrap();
 
         file.write(&buf)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypt::encrypt;
+
+    fn header(header_size: u32, hash_pos: u32) -> [u8; 32] {
+        let mut buf = [0u8; 32];
+        buf[0..4].copy_from_slice(ID_MPQA);
+        buf[4..8].copy_from_slice(&header_size.to_le_bytes());
+        buf[14..16].copy_from_slice(&3u16.to_le_bytes());
+        buf[16..20].copy_from_slice(&hash_pos.to_le_bytes());
+        buf[20..24].copy_from_slice(&hash_pos.to_le_bytes());
+        buf
+    }
+
+    #[test]
+    fn storm_skips_a_header_smaller_than_0x20() {
+        let mut archive = vec![0u8; 0x400];
+        archive[0..32].copy_from_slice(&header(0x10, 0x20));
+        archive[0x200..0x220].copy_from_slice(&header(0x20, 0x20));
+
+        let opened = Archive::load(archive).expect("second header should be accepted");
+        assert_eq!(opened.offset, 0x200);
+    }
+
+    #[test]
+    fn storm_accepts_a_huge_header_size() {
+        let mut archive = vec![0u8; 0x400];
+        archive[0x200..0x220].copy_from_slice(&header(1_347_385_430, 0x20));
+
+        let opened = Archive::load(archive).expect("Spazzler-sized header is still a header");
+        assert_eq!(opened.offset, 0x200);
+    }
+
+    #[test]
+    fn stormlib_skips_a_header_whose_tables_sit_past_eof() {
+        let mut archive = vec![0u8; 0x400];
+        archive[0..32].copy_from_slice(&header(0x20, 0x10000));
+        archive[0x200..0x220].copy_from_slice(&header(0x20, 0x20));
+
+        let opened = Archive::load(archive).expect("decoy with out-of-range tables is skipped");
+        assert_eq!(opened.offset, 0x200);
+    }
+
+    #[test]
+    fn wrapped_table_offsets_are_not_fake_headers() {
+        // offset 0x200 + 0xFFFF_FF00 wraps to 0x100, which is inside a 0x400 file.
+        // StormLib keeps this header; it is not ERROR_FAKE_MPQ_HEADER.
+        let mut archive = vec![0u8; 0x400];
+        archive[0x200..0x220].copy_from_slice(&header(0x20, 0xFFFF_FF00));
+
+        let opened = Archive::load(archive).expect("32-bit wrap back into the file is valid");
+        assert_eq!(opened.offset, 0x200);
+    }
+
+    #[test]
+    fn stormlib_masks_high_bits_of_the_block_index() {
+        // 4-slot hash table + 1 block, both immediately after a 32-byte header.
+        // The w3i hash entry lives at its home bucket with block_index =
+        // 0x80000000 (FILE_EXISTS bit set on the index, protector style).
+        let name = "war3map.w3i";
+        let hash_count = 4u32;
+        let home = hash_string(name, 0x0) & (hash_count - 1);
+        let mut hash_raw = vec![0u8; 4 * 16];
+        let slot = (home as usize) * 16;
+        hash_raw[slot..slot + 4].copy_from_slice(&hash_string(name, 0x100).to_le_bytes());
+        hash_raw[slot + 4..slot + 8].copy_from_slice(&hash_string(name, 0x200).to_le_bytes());
+        hash_raw[slot + 12..slot + 16].copy_from_slice(&0x8000_0000u32.to_le_bytes());
+        encrypt(&mut hash_raw, hash_string("(hash table)", 0x300));
+
+        let mut block_raw = vec![0u8; 16];
+        // offset 0x70, 4 packed/unpacked bytes, no compression
+        block_raw[0..4].copy_from_slice(&0x70u32.to_le_bytes());
+        block_raw[4..8].copy_from_slice(&4u32.to_le_bytes());
+        block_raw[8..12].copy_from_slice(&4u32.to_le_bytes());
+        block_raw[12..16].copy_from_slice(&FILE_SINGLE_UNIT.to_le_bytes());
+        encrypt(&mut block_raw, hash_string("(block table)", 0x300));
+
+        let mut archive = vec![0u8; 0x80];
+        let mut hdr = header(0x20, 0x20);
+        hdr[20..24].copy_from_slice(&0x60u32.to_le_bytes()); // block table after 4 hash slots
+        hdr[24..28].copy_from_slice(&hash_count.to_le_bytes());
+        hdr[28..32].copy_from_slice(&1u32.to_le_bytes());
+        archive[0..32].copy_from_slice(&hdr);
+        archive[0x20..0x60].copy_from_slice(&hash_raw);
+        archive[0x60..0x70].copy_from_slice(&block_raw);
+        archive[0x70..0x74].copy_from_slice(&[1, 2, 3, 4]);
+
+        let mut opened = Archive::load(archive).expect("archive with masked block index");
+        let file = opened
+            .open_file(name)
+            .expect("0x80000000 block index must resolve to 0");
+        assert_eq!(file.size(), 4);
     }
 }

@@ -181,6 +181,25 @@ pub fn hash_string(key: &str, offset: u32) -> u32 {
     seed1
 }
 
+#[cfg(test)]
+pub fn encrypt(data: &mut [u8], mut seed: u32) {
+    let mut seed2: u32 = 0xeeeeeeee;
+    let mut it = 0;
+
+    while it + 4 <= data.len() {
+        seed2 = seed2.wrapping_add(CRYPT_TABLE[(0x400 + (seed & 0xff)) as usize]);
+        let plain = LittleEndian::read_u32(&data[it..]);
+        let ch = plain ^ seed.wrapping_add(seed2);
+        seed = ((!seed << 0x15).wrapping_add(0x11111111)) | (seed >> 0x0b);
+        seed2 = plain
+            .wrapping_add(seed2)
+            .wrapping_add(seed2 << 5)
+            .wrapping_add(3);
+        LittleEndian::write_u32(&mut data[it..], ch);
+        it += 4;
+    }
+}
+
 pub fn decrypt(data: &mut [u8], mut seed: u32) {
     let mut seed2: u32 = 0xeeeeeeee;
     let mut it = 0;
@@ -214,5 +233,18 @@ mod test {
         assert_eq!(0x5F3DE859, hash_string("(listfile)", 0));
         assert_eq!(0xF4E6C69D, hash_string("arr\\units.dat", 0));
         assert_eq!(0xA26067F3, hash_string("unit\\neutral\\acritter.grp", 0));
+    }
+
+    #[test]
+    fn decrypt_known_vector() {
+        let mut z = [0u8; 16];
+        super::decrypt(&mut z, hash_string("(hash table)", 0x300));
+        assert_eq!(
+            z,
+            [
+                0xcc, 0xcf, 0x3c, 0x86, 0xa4, 0xf6, 0x09, 0xee, 0x55, 0x4c, 0x71, 0x9c, 0xf5, 0x85,
+                0x1b, 0x6b
+            ]
+        );
     }
 }
