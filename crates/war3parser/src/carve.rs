@@ -99,9 +99,12 @@ pub fn carve_deep(buffer: &[u8]) -> Option<Carved> {
 
 /// Largest member worth decompressing here. A `w3i` is a few KB and a string
 /// table a few hundred; the members above this bound are scripts, terrain and
-/// textures, and inflating them to look at their first bytes is most of what a
-/// carve costs.
+/// textures.
 const MAX_INTERESTING: u32 = 1 << 21;
+
+/// `war3map.w3i` opens with its format version, and the ladder is short. One
+/// sector is enough to recognise the number and skip everything that is not it.
+const W3I_VERSIONS: [u32; 8] = [8, 10, 11, 15, 18, 23, 25, 28];
 
 /// Recover metadata from the members `war3-mpq` can walk to.
 fn carve_members(buffer: &[u8]) -> Option<Carved> {
@@ -118,11 +121,30 @@ fn carve_members(buffer: &[u8]) -> Option<Carved> {
         if member.packed_size > MAX_INTERESTING {
             continue;
         }
+
+        // Sniff one sector first. Inflating every member in full — scripts,
+        // terrain, textures — to look at its first bytes is what made a carve
+        // cost seconds per map.
+        let Ok(head) = archive.read_salvaged_prefix(member, 1) else {
+            continue;
+        };
+
+        let looks_like_w3i = info.is_none()
+            && head.len() >= 4
+            && W3I_VERSIONS.contains(&u32::from_le_bytes([head[0], head[1], head[2], head[3]]));
+        let looks_like_wts =
+            strings.is_none() && head.windows(WTS_KEYWORD.len()).any(|w| w == WTS_KEYWORD);
+        if !looks_like_w3i && !looks_like_wts {
+            continue;
+        }
+
+        // Only now is the whole member worth having: a w3i can outgrow one
+        // sector, and a string table nearly always does.
         let Ok(data) = archive.read_salvaged(member) else {
             continue;
         };
 
-        if info.is_none() {
+        if looks_like_w3i {
             if let Ok(candidate) = War3MapW3i::parse(&data) {
                 if plausible(&candidate) {
                     info = Some(candidate);
@@ -133,7 +155,7 @@ fn carve_members(buffer: &[u8]) -> Option<Carved> {
 
         // Unlike the scan, a member is already whole, so the richest-wins rule
         // is not needed: a table that parses here is the table.
-        if strings.is_none() && data.windows(WTS_KEYWORD.len()).any(|w| w == WTS_KEYWORD) {
+        if looks_like_wts {
             strings = parse_table(&data);
         }
     }

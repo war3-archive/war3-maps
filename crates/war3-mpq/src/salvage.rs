@@ -90,6 +90,20 @@ impl Archive {
     /// the archive's sector size is stored verbatim, which is how MPQ marks an
     /// incompressible one.
     pub fn read_salvaged(&mut self, member: &SalvagedMember) -> Result<Vec<u8>, Error> {
+        self.read_salvaged_prefix(member, usize::MAX)
+    }
+
+    /// Decompress at most `sectors` sectors of a salvaged member.
+    ///
+    /// A caller identifying members by content does not need the whole file —
+    /// the first sector already says what something is. Inflating every member
+    /// in full to look at its first bytes is what makes a salvage pass
+    /// expensive, and most members are scripts and textures nobody wants.
+    pub fn read_salvaged_prefix(
+        &mut self,
+        member: &SalvagedMember,
+        sectors: usize,
+    ) -> Result<Vec<u8>, Error> {
         if self.sector_size == 0 {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -102,7 +116,7 @@ impl Archive {
         let mut raw: Vec<u8> = Vec::new();
         let mut scratch: Vec<u8> = vec![0; sector_size];
 
-        for pair in member.sector_offsets.windows(2) {
+        for pair in member.sector_offsets.windows(2).take(sectors) {
             let (from, to) = (pair[0], pair[1]);
             // The walk already checked that offsets rise and stay within the
             // declared sector size, so this cannot underflow or over-allocate.
