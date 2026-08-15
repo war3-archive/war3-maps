@@ -90,7 +90,12 @@ def run(args: argparse.Namespace) -> None:
     print(f"validated {len(maps)} unique maps ({total} bytes) in {root}")
     if args.dry_run:
         return
+    # huggingface_hub reads this setting while importing its tqdm helpers; it
+    # therefore has to be cleared before importing the client, not merely
+    # before calling upload_folder.
+    os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
     from huggingface_hub import HfApi, get_token
+    from huggingface_hub.utils import enable_progress_bars
 
     # `hf auth login` stores a token of its own, so only insist on one when the
     # library cannot find any: requiring HF_TOKEN would reject a machine that is
@@ -101,9 +106,9 @@ def run(args: argparse.Namespace) -> None:
     api = HfApi(token=args.token)
     if not args.no_create:
         api.create_repo(args.repo_id, repo_type="dataset", private=args.private, exist_ok=True)
-    # upload_folder's own progress goes through huggingface_hub's bars, which
-    # this env var would silence — a long upload with no output reads as a hang.
-    os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
+    # `upload_folder` reports through huggingface_hub's own bars.  Explicitly
+    # enable them after clearing the environment-level override above.
+    enable_progress_bars()
     print(
         f"uploading to {args.repo_id}: hashing against the Hub, then sending what differs",
         flush=True,
