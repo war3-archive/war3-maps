@@ -1,36 +1,30 @@
-#!/usr/bin/env python3
 """Validate and resumably upload a generated map dataset to Hugging Face."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
+import time
 from pathlib import Path
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+from ..catalog import load_catalog
+from ..progress import Progress, byte_progress
+
+
+def configure(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("dataset_root", type=Path, help="Root containing objects/ and catalog/")
     parser.add_argument("--repo-id", required=True, help="owner/dataset-name")
     parser.add_argument("--revision", default="main")
     parser.add_argument("--token", default=os.getenv("HF_TOKEN"))
     parser.add_argument("--private", action="store_true", help="Default is a public dataset")
-    parser.add_argument("--no-create", action="store_true", help="Require the dataset repo to exist")
-    parser.add_argument("--skip-hash-check", action="store_true", help="Skip expensive content re-hashing")
+    parser.add_argument(
+        "--no-create", action="store_true", help="Require the dataset repo to exist"
+    )
+    parser.add_argument(
+        "--skip-hash-check", action="store_true", help="Skip expensive content re-hashing"
+    )
     parser.add_argument("--dry-run", action="store_true")
-    return parser.parse_args()
-
-
-def load_catalog(root: Path) -> list[dict]:
-    path = root / "catalog" / "maps.json"
-    if not path.is_file():
-        raise SystemExit(f"missing catalog: {path}")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    maps = payload.get("maps") if isinstance(payload, dict) else payload
-    if not isinstance(maps, list):
-        raise SystemExit("catalog maps must be an array")
-    return maps
 
 
 def file_sha256(path: Path) -> str:
@@ -42,9 +36,18 @@ def file_sha256(path: Path) -> str:
 
 
 def validate(root: Path, maps: list[dict], check_hash: bool) -> None:
+    """Refuse to publish a catalog that does not describe what is on disk.
+
+    Re-hashing reads the whole archive, so that pass reports against total
+    bytes: a count of objects moves in lurches when one map is 4 KB and the
+    next is 400 MB.
+    """
+    total_bytes = sum(int(item.get("size") or 0) for item in maps)
+    progress = byte_progress(total_bytes) if check_hash else Progress(len(maps), "objects")
     seen: set[str] = set()
     missing: list[str] = []
     for item in maps:
+        progress.advance(int(item.get("size") or 0) if check_hash else 1)
         digest = str(item.get("sha256", ""))
         dataset_path = str(item.get("dataset_path", ""))
         if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest.lower()):
@@ -73,12 +76,15 @@ def validate(root: Path, maps: list[dict], check_hash: bool) -> None:
     if missing:
         sample = "\n".join(f"  - {path}" for path in missing[:20])
         raise SystemExit(f"{len(missing)} catalog objects are missing:\n{sample}")
+    progress.finish(
+        f"validated {len(maps)} objects"
+        + (" with content hashes" if check_hash else " (hash check skipped)")
+    )
 
 
-def main() -> None:
-    args = parse_args()
+def run(args: argparse.Namespace) -> None:
     root = args.dataset_root.resolve()
-    maps = load_catalog(root)
+    maps = load_catalog(root)["maps"]
     validate(root, maps, check_hash=not args.skip_hash_check)
     total = sum(int(item.get("size") or 0) for item in maps)
     print(f"validated {len(maps)} unique maps ({total} bytes) in {root}")
@@ -95,6 +101,14 @@ def main() -> None:
     api = HfApi(token=args.token)
     if not args.no_create:
         api.create_repo(args.repo_id, repo_type="dataset", private=args.private, exist_ok=True)
+    # upload_folder's own progress goes through huggingface_hub's bars, which
+    # this env var would silence — a long upload with no output reads as a hang.
+    os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
+    print(
+        f"uploading to {args.repo_id}: hashing against the Hub, then sending what differs",
+        flush=True,
+    )
+    started = time.monotonic()
     # Current huggingface_hub upload_folder uses Xet, adaptive commits and resumes
     # interrupted large-folder uploads when the same command is rerun.
     api.upload_folder(
@@ -102,15 +116,15 @@ def main() -> None:
         repo_type="dataset",
         folder_path=str(root),
         revision=args.revision,
-        # Covers are published as WebP by export_covers.py; the PNG masters stay
+        # Covers are published as WebP by export-covers; the PNG masters stay
         # local, and .DS_Store has no business in a public dataset. The patterns
         # are matched with fnmatch against the repo-relative path, so `**/` only
         # matches nested files — the dataset root needs its own bare pattern.
         ignore_patterns=["covers/**/*.png", ".DS_Store", "**/.DS_Store"],
         commit_message="Upload cleaned Warcraft III map archive",
     )
-    print(f"uploaded to https://huggingface.co/datasets/{args.repo_id}")
-
-
-if __name__ == "__main__":
-    main()
+    elapsed = time.monotonic() - started
+    print(
+        f"uploaded in {elapsed:.1f}s to https://huggingface.co/datasets/{args.repo_id}",
+        flush=True,
+    )

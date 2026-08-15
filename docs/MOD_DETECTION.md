@@ -34,10 +34,10 @@
 
 ```bash
 cargo run --profile catalog -p war3-manager-cli -- scan-mods /path/to/dataset -o mods.jsonl
-python3 deploy/apply_mods.py /path/to/dataset mods.jsonl
+uv run --project deploy war3-deploy apply-mods /path/to/dataset mods.jsonl
 ```
 
-`scan-mods` 默认只输出命中或读取失败的对象，`--all` 输出全部。`apply_mods.py` 按
+`scan-mods` 默认只输出命中或读取失败的对象，`--all` 输出全部。`apply-mods` 按
 SHA-256 回填：扫描里没有的对象保持原样，扫描里出现但没有 `modification` 的会被清除，
 所以撤下一条特征后站点上的标记也会跟着消失。
 

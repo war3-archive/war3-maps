@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Merge `war3-manager rescan` output into an existing catalog.
 
 Parser fixes keep turning previously unreadable maps into readable ones, so the
@@ -7,18 +6,17 @@ metadata a record derives from the file itself is refreshed here. Provenance
 layout that no longer exists and is never touched.
 
 Covers recovered by the rescan land as `covers/<xx>/<sha>.png`; run
-`deploy/export_covers.py` afterwards to encode them and set `cover_path` /
+`war3-deploy export-covers` afterwards to encode them and set `cover_path` /
 `cover_url`.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-import os
-import tempfile
 from collections import Counter
 from pathlib import Path
+
+from ..catalog import emit_report, load_catalog, load_scan, match_scanned, save_catalog
 
 # Fields owned by the file itself. Everything else in a record is provenance.
 DERIVED = (
@@ -40,6 +38,16 @@ DERIVED = (
 )
 
 
+def configure(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("dataset_root", type=Path, help="Root containing catalog/")
+    parser.add_argument("rescan", type=Path, help="JSONL from `war3-manager rescan`")
+    parser.add_argument(
+        "--keep-names",
+        action="store_true",
+        help="Do not replace an existing name/author/description (only fill blanks)",
+    )
+
+
 def usable_metadata(status: object) -> bool:
     """A record has usable map metadata, even if the archive itself is opaque."""
     return status in {"ok", "carved"}
@@ -56,8 +64,10 @@ def strip_warcraft_codes(text: str) -> str:
             index += 1
             continue
         marker = text[index + 1]
-        if marker in "cC" and len(text) >= index + 10 and all(
-            c in "0123456789abcdefABCDEF" for c in text[index + 2 : index + 10]
+        if (
+            marker in "cC"
+            and len(text) >= index + 10
+            and all(c in "0123456789abcdefABCDEF" for c in text[index + 2 : index + 10])
         ):
             index += 10
         elif marker in "rR":
@@ -89,53 +99,15 @@ def name_from_filename(item: dict) -> str | None:
     return cleaned or None
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("dataset_root", type=Path, help="Root containing catalog/")
-    parser.add_argument("rescan", type=Path, help="JSONL from `war3-manager rescan`")
-    parser.add_argument(
-        "--keep-names",
-        action="store_true",
-        help="Do not replace an existing name/author/description (only fill blanks)",
-    )
-    return parser.parse_args()
-
-
-def write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write(text)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
-def main() -> None:
-    args = parse_args()
+def run(args: argparse.Namespace) -> None:
     root = args.dataset_root.resolve()
-    catalog_path = root / "catalog" / "maps.json"
-    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    maps = catalog.get("maps")
-    if not isinstance(maps, list):
-        raise SystemExit(f"invalid catalog: {catalog_path}")
+    catalog = load_catalog(root)
+    maps = catalog["maps"]
+    scanned = load_scan(args.rescan)
 
-    scanned: dict[str, dict] = {}
-    with args.rescan.open(encoding="utf-8") as stream:
-        for line in stream:
-            line = line.strip()
-            if line:
-                record = json.loads(line)
-                scanned[str(record.get("sha256", ""))] = record
-
-    outcomes = Counter()
+    outcomes: Counter[str] = Counter()
     renamed = []
-    for item in maps:
-        record = scanned.get(str(item.get("sha256", "")))
+    for item, record in match_scanned(maps, scanned, note=f"applied rescan to {len(maps)} maps"):
         if record is None:
             outcomes["not_scanned"] += 1
             continue
@@ -184,24 +156,13 @@ def main() -> None:
         else:
             outcomes["still_broken"] += 1
 
-    write_atomic(catalog_path, json.dumps(catalog, ensure_ascii=False, indent=2) + "\n")
-    write_atomic(
-        root / "catalog" / "maps.jsonl",
-        "".join(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n" for item in maps),
+    save_catalog(root, catalog)
+    emit_report(
+        {
+            "maps": len(maps),
+            "scanned": len(scanned),
+            "outcomes": dict(outcomes),
+            "with_modification": sum(1 for item in maps if item.get("modification")),
+            "renamed_examples": renamed[:5],
+        }
     )
-    print(
-        json.dumps(
-            {
-                "maps": len(maps),
-                "scanned": len(scanned),
-                "outcomes": dict(outcomes),
-                "with_modification": sum(1 for item in maps if item.get("modification")),
-                "renamed_examples": renamed[:5],
-            },
-            ensure_ascii=False,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()

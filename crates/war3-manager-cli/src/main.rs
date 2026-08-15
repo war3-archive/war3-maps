@@ -57,7 +57,7 @@ enum Command {
     ///
     /// Signatures change more often than the catalog does, so this runs
     /// independently of `build-catalog`; feed the output to
-    /// `deploy/apply_mods.py` to patch the records in place.
+    /// `war3-deploy apply-mods` to patch the records in place.
     ScanMods {
         /// Dataset root containing `objects/`
         dataset_root: String,
@@ -82,8 +82,8 @@ enum Command {
     /// refreshes an existing dataset in place instead of rebuilding it, which
     /// would lose collection assignments and source provenance. Recovered
     /// covers are written as `covers/<xx>/<sha256>.png` for
-    /// `deploy/export_covers.py` to encode. Feed the JSONL to
-    /// `deploy/apply_rescan.py`.
+    /// `war3-deploy export-covers` to encode. Feed the JSONL to
+    /// `war3-deploy apply-rescan`.
     Rescan {
         /// Dataset root containing `objects/`
         dataset_root: String,

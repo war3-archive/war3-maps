@@ -81,35 +81,47 @@ just rescan /path/to/war3-maps-dataset
 cargo run --profile catalog -p war3-manager-cli -- \
   rescan /path/to/war3-maps-dataset -o rescan.jsonl
 
-python3 deploy/apply_rescan.py \
+uv run --project deploy war3-deploy apply-rescan \
   /path/to/war3-maps-dataset rescan.jsonl
 
-python3 deploy/export_covers.py \
+uv run --project deploy war3-deploy export-covers \
   /path/to/war3-maps-dataset
 ```
 
 也可以使用 `scan-versions` 或 `scan-mods` 只刷新对应字段，再分别运行
-`apply_versions.py` 或 `apply_mods.py`。
+`apply-versions` 或 `apply-mods`。
 
-## 运维脚本
+## 运维工具
 
-- `deploy/merge_dataset.py`：按 SHA-256 增量合并新批次
-- `deploy/apply_rescan.py`：回填完整重扫结果
-- `deploy/apply_mods.py`：回填第三方脚本修改检测结果
-- `deploy/apply_versions.py`：回填 w3i 版本字段
-- `deploy/export_covers.py`：导出 WebP 封面并写入 `cover_path`、`cover_url`
-- `deploy/hf/upload_dataset.py`：校验并上传内容寻址数据集
-- `deploy/verify_final.py`：发布后检查栏目、失败记录、封面与下载链接
+`deploy/` 是一个由 [uv](https://docs.astral.sh/uv/) 管理的 Python 项目
+（`war3-deploy`），依赖锁在 `deploy/uv.lock`。`uv run` 会按需创建并同步虚拟环境，
+不需要手动装依赖：
+
+```bash
+uv run --project deploy war3-deploy --help
+# 或者
+just deploy --help
+```
+
+| 子命令 | 作用 |
+|--------|------|
+| `merge` | 按 SHA-256 增量合并新批次 |
+| `apply-rescan` | 回填完整重扫结果 |
+| `apply-mods` | 回填第三方脚本修改检测结果 |
+| `apply-versions` | 回填 w3i 版本字段 |
+| `export-covers` | 导出 WebP 封面并写入 `cover_path`、`cover_url` |
+| `upload` | 校验并上传内容寻址数据集 |
+| `verify` | 发布后检查栏目、失败记录、封面与下载链接 |
+
+长流程的进度打在 stderr（终端里就地刷新，重定向到文件时每步一行），JSON 报告打在
+stdout，因此 `... | jq` 只会读到报告。
 
 地图修改检测的字段和规则见 [MOD_DETECTION.md](MOD_DETECTION.md)。
 
 ## 发布顺序
 
 ```text
-merge_dataset.py
-  → export_covers.py
-  → hf/upload_dataset.py
-  → verify_final.py
+merge → export-covers → upload → verify
 ```
 
 必须在上传前导出封面，否则目录里的 `cover_url` 会指向数据集中尚不存在的文件。
@@ -126,25 +138,18 @@ parquet 转换跑不完，viewer/search/filter 全部不可用）；`dataset_inf
 `features`**，否则新字段会被 `unexpected_field_behavior=ignore` 静默丢掉。改完
 模板记得重新复制到数据集根目录，再上传。
 
-然后安装上传脚本依赖：
-
-```bash
-python3 -m venv .venv-hf
-.venv-hf/bin/pip install -r deploy/hf/requirements.txt
-```
-
-认证走 `hf auth login`（脚本会读取它存下的 token）；也可以用 `HF_TOKEN=hf_...`
+认证走 `hf auth login`（命令会读取它存下的 token）；也可以用 `HF_TOKEN=hf_...`
 或 `--token` 覆盖。`--dry-run` 只做本地校验，不需要认证。
 
 先做本地校验，再正式上传：
 
 ```bash
-.venv-hf/bin/python deploy/hf/upload_dataset.py \
+uv run --project deploy war3-deploy upload \
   /path/to/war3-maps-dataset \
   --repo-id magicwenli/war3-maps \
   --dry-run
 
-.venv-hf/bin/python deploy/hf/upload_dataset.py \
+uv run --project deploy war3-deploy upload \
   /path/to/war3-maps-dataset \
   --repo-id magicwenli/war3-maps
 ```

@@ -440,7 +440,7 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
 ///
 /// `extract_cover` produces the inline thumbnail `build-catalog` writes into the
 /// catalog; this one keeps the original resolution and leaves downscaling to
-/// `deploy/export_covers.py`, which owns the published WebP.
+/// `war3-deploy export-covers`, which owns the published WebP.
 pub fn cover_png(bytes: &[u8]) -> Option<(Vec<u8>, &'static str)> {
     catch_unwind(AssertUnwindSafe(|| {
         if let Ok(mut archive) = War3MapW3x::from_buffer(bytes) {

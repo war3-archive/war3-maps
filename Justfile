@@ -11,6 +11,8 @@ build-catalog:
 lint:
     cargo fmt --all
     cargo clippy --workspace --all-targets -- -D warnings
+    uv run --project deploy ruff format deploy/src
+    uv run --project deploy ruff check deploy/src
 
 test:
     cargo test --workspace --all-targets
@@ -26,5 +28,9 @@ release level:
 # Refresh an existing dataset after an upstream parser fix.
 rescan dataset:
     cargo run --profile catalog -p war3-manager-cli -- rescan {{dataset}} -o rescan.jsonl
-    python3 deploy/apply_rescan.py {{dataset}} rescan.jsonl
-    python3 deploy/export_covers.py {{dataset}}
+    uv run --project deploy war3-deploy apply-rescan {{dataset}} rescan.jsonl
+    uv run --project deploy war3-deploy export-covers {{dataset}}
+
+# The deploy tooling is a uv project; `uv run` syncs it on demand.
+deploy *args:
+    uv run --project deploy war3-deploy {{args}}

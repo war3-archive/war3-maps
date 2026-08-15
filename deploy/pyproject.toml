@@ -1,0 +1,33 @@
+[project]
+name = "war3-deploy"
+version = "0.1.0"
+description = "Dataset maintenance and publishing tools for the Warcraft III map archive"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=1.3,<2",
+    "hf-xet>=1.1,<2",
+    "pillow>=11,<13",
+]
+
+[project.scripts]
+war3-deploy = "war3_deploy.cli:main"
+
+[dependency-groups]
+dev = ["ruff>=0.14"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I", "UP"]
+# The published-archive audit treats any network failure as "unreachable", which
+# is the point of the check — there is nothing more specific to catch.
+ignore = ["BLE001"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/war3_deploy"]

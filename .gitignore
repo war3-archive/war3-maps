@@ -11,3 +11,7 @@ web/war3-archive/src/data/build-info.json
 # Rust
 target/
 rescan.jsonl
+
+# Python, managed by uv (deploy/uv.lock is committed)
+.venv/
+__pycache__/
