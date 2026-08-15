@@ -96,6 +96,7 @@ def run(args: argparse.Namespace) -> None:
     os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
     from huggingface_hub import HfApi, get_token
     from huggingface_hub.utils import enable_progress_bars
+    from huggingface_hub.utils import logging as hf_logging
 
     # `hf auth login` stores a token of its own, so only insist on one when the
     # library cannot find any: requiring HF_TOKEN would reject a machine that is
@@ -107,8 +108,11 @@ def run(args: argparse.Namespace) -> None:
     if not args.no_create:
         api.create_repo(args.repo_id, repo_type="dataset", private=args.private, exist_ok=True)
     # `upload_folder` reports through huggingface_hub's own bars.  Explicitly
-    # enable them after clearing the environment-level override above.
+    # enable them after clearing the environment-level override above. Xet
+    # emits periodic transfer summaries through the INFO logger when stderr is
+    # not a TTY, so enable that channel as well as tqdm.
     enable_progress_bars()
+    hf_logging.set_verbosity_info()
     print(
         f"uploading to {args.repo_id}: hashing against the Hub, then sending what differs",
         flush=True,
