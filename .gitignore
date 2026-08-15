@@ -15,3 +15,8 @@ rescan.jsonl
 # Python, managed by uv (deploy/uv.lock is committed)
 .venv/
 __pycache__/
+
+# env
+.env
+.env.*
+!.env.example

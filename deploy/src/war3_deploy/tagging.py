@@ -1,9 +1,10 @@
 """Stable taxonomy and input normalisation for AI-assisted map tagging.
 
-The model is never allowed to invent a tag.  It may select only from this
-small, versioned vocabulary, which keeps filtering and future model runs
-compatible.  Existing ``collection`` / ``category`` values are provenance and
-weak hints; title and description are the actual classification input.
+The taxonomy starts with a versioned vocabulary but can grow in a controlled
+way.  New tags must use one of the three stable namespaces and are retained in
+the candidate file, making proposed additions reviewable before the catalog is
+updated.  Existing ``collection`` / ``category`` values are provenance and weak
+hints; title and description are the actual classification input.
 """
 
 from __future__ import annotations
@@ -12,20 +13,34 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-TAG_SCHEMA_VERSION = 1
+TAG_SCHEMA_VERSION = 2
 
 GAMEPLAY_TAGS = (
     "玩法:塔防",
     "玩法:防守",
     "玩法:生存",
     "玩法:对抗",
+    "玩法:MOBA",
     "玩法:RPG",
     "玩法:ORPG",
+    "玩法:动作RPG",
     "玩法:战役",
+    "玩法:剧情",
     "玩法:解谜",
+    "玩法:逃脱",
     "玩法:休闲",
     "玩法:竞速",
     "玩法:微操",
+    "玩法:合作",
+    "玩法:建造",
+    "玩法:经营",
+    "玩法:策略",
+    "玩法:卡牌",
+    "玩法:养成",
+    "玩法:射击",
+    "玩法:动作",
+    "玩法:平台跳跃",
+    "玩法:迷宫",
     "玩法:其他",
 )
 
@@ -44,6 +59,23 @@ SERIES_TAGS = (
     "系列:海贼王",
     "系列:宠物小精灵",
     "系列:星河战队",
+    "系列:反恐精英",
+    "系列:拳皇",
+    "系列:地下城与勇士",
+    "系列:数码宝贝",
+    "系列:七龙珠",
+    "系列:奥特曼",
+    "系列:假面骑士",
+    "系列:犬夜叉",
+    "系列:魔法少女",
+    "系列:初音未来",
+    "系列:红色警戒",
+    "系列:植物大战僵尸",
+    "系列:我的世界",
+    "系列:英雄无敌",
+    "系列:暗黑破坏神",
+    "系列:流星蝴蝶剑",
+    "系列:古剑奇谭",
 )
 
 THEME_TAGS = (
@@ -58,9 +90,29 @@ THEME_TAGS = (
     "题材:恐怖",
     "题材:僵尸",
     "题材:末日",
+    "题材:东方玄幻",
+    "题材:西方奇幻",
+    "题材:赛博朋克",
+    "题材:蒸汽朋克",
+    "题材:都市",
+    "题材:校园",
+    "题材:恋爱",
+    "题材:动物",
+    "题材:海战",
+    "题材:空战",
+    "题材:二战",
+    "题材:现代战争",
+    "题材:未来战争",
+    "题材:推理",
+    "题材:侦探",
+    "题材:幽默",
+    "题材:节日",
 )
 
 ALLOWED_TAGS = frozenset((*GAMEPLAY_TAGS, *SERIES_TAGS, *THEME_TAGS))
+TAG_NAMESPACES = ("玩法:", "系列:", "题材:")
+_CANONICAL_TAG_BY_NAME = {tag.split(":", maxsplit=1)[1]: tag for tag in ALLOWED_TAGS}
+_TAG_NAME = re.compile(r"^[A-Za-z0-9 +#&'\-·（）()\u3400-\u9fff]{1,24}$")
 
 
 @dataclass(frozen=True)
@@ -156,6 +208,34 @@ def strip_warcraft_codes(value: object) -> str:
     return " ".join("".join(out).split())
 
 
+def normalize_extension_tag(value: object) -> str | None:
+    """Validate a model-proposed taxonomy extension.
+
+    The namespaces are deliberately fixed so downstream filtering stays
+    stable.  The name is short and punctuation-restricted to prevent an LLM
+    response from turning into an arbitrary free-text label.
+    """
+    tag = strip_warcraft_codes(value)
+    if not any(tag.startswith(prefix) for prefix in TAG_NAMESPACES):
+        return None
+    prefix, name = tag.split(":", maxsplit=1)
+    if not name or name in {"其他", "未知", "未分类"} or not _TAG_NAME.fullmatch(name):
+        return None
+    return f"{prefix}:{name}"
+
+
+def canonicalize_tag(value: object) -> str | None:
+    """Return a valid tag, correcting a known name in the wrong namespace."""
+    raw = strip_warcraft_codes(value)
+    if raw in ALLOWED_TAGS:
+        return raw
+    extension = normalize_extension_tag(raw)
+    if extension is None:
+        return None
+    _, name = extension.split(":", maxsplit=1)
+    return _CANONICAL_TAG_BY_NAME.get(name, extension)
+
+
 def map_text(item: dict) -> tuple[str, str]:
     """Return the clean title and description supplied to the model."""
     title = strip_warcraft_codes(item.get("name") or item.get("filename"))
@@ -188,16 +268,24 @@ def seed_tags(item: dict) -> tuple[list[str], list[str]]:
     return tagged, evidence
 
 
-def taxonomy_prompt() -> str:
-    """The closed vocabulary and decision policy embedded in every batch."""
+def taxonomy_prompt(allow_new_tags: bool = True) -> str:
+    """The taxonomy and decision policy embedded in every batch."""
+    extension_rule = (
+        "若现有词表确实无法准确表达、且标题或简介有明确证据，可新增至多 3 个标签；"
+        "新标签只能以“玩法:”“系列:”或“题材:”开头，名称为简短规范名。"
+        if allow_new_tags
+        else "只能选择下列既有标签，绝不能创造同义词或新标签。"
+    )
     return "\n".join(
         (
             "你是 Warcraft III 地图编目员。只依据清洗后的标题与简介做多标签分类。",
             "旧栏目只是可能错误的历史线索，不能把它当成事实。",
             "每张图必须保留至少一个以“玩法:”开头的标签；只有没有足够证据时才用“玩法:其他”。",
-            "只能选择以下标签，绝不能创造同义词或新标签：",
+            extension_rule,
+            "优先复用以下既有标签，避免近义词重复：",
             ", ".join((*GAMEPLAY_TAGS, *SERIES_TAGS, *THEME_TAGS)),
             "置信度只能是 high、medium、low。",
-            "输入中每张图有 i（批内序号）。返回严格 JSON：{\"maps\":[{\"i\":0,\"tags\":[\"...\"],\"confidence\":\"high\"}]}。",
+            "不要解释、不要 Markdown、不要思考过程。输入中每张图有 i（批内序号）。",
+            "返回严格 JSON：{\"maps\":[{\"i\":0,\"tags\":[\"...\"],\"confidence\":\"high\"}]}。",
         )
     )

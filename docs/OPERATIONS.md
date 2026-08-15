@@ -109,7 +109,7 @@ just deploy --help
 | `apply-rescan` | 回填完整重扫结果 |
 | `apply-mods` | 回填第三方脚本修改检测结果 |
 | `apply-versions` | 回填 w3i 版本字段 |
-| `classify-tags` | 使用本地 OpenAI 兼容小模型生成可审核、可续跑的玩法/系列/题材标签候选 |
+| `classify-tags` | 使用本地模型或远程文本 API 生成可审核、可续跑的玩法/系列/题材标签候选 |
 | `export-covers` | 导出 WebP 封面并写入 `cover_path`、`cover_url` |
 | `upload` | 校验并上传内容寻址数据集 |
 | `verify` | 发布后检查栏目、失败记录、封面与下载链接 |
@@ -120,8 +120,12 @@ stdout，因此 `... | jq` 只会读到报告。
 ### AI 标签候选
 
 `classify-tags` 不会覆盖历史 `collection` 或 `category`。它会去掉标题和简介中的
-Warcraft III 颜色/换行控制码，向本机的 OpenAI 兼容模型请求固定词表中的多标签，并在
-每批完成后写入 `catalog/tag-candidates.jsonl`；重跑会跳过已有 SHA-256，可安全续跑。
+Warcraft III 颜色/换行控制码，向本机或远程 OpenAI 兼容模型请求多标签，并在每批完成后
+写入 `catalog/tag-candidates.jsonl`；重跑会跳过同一 schema 的已有 SHA-256，可安全续跑。
+默认会关闭 OpenRouter 的 reasoning，截断则将该批自动拆分重试。基础词表外的新标签只允许
+使用 `玩法:`、`系列:`、`题材:` 命名空间，每图最多三个，并会在最终报告的
+`taxonomy_extensions` 中汇总；用 `--no-new-tags` 可以强制固定词表。
+远程 API 可加 `--workers 8` 并发请求，候选检查点仍串行写入，不会发生文件竞争。
 
 Apple Silicon 上可用 MLX 启动默认的小模型：
 

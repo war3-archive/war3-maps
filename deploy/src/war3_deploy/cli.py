@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from . import __version__
 from .commands import (
@@ -53,5 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    # `uv run --project deploy` is normally launched from the repository root.
+    # Point at the project file explicitly so it does not silently miss
+    # deploy/.env and fall back to the local-model defaults.
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     args = build_parser().parse_args(argv)
     args.run(args)
