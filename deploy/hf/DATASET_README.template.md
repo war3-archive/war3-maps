@@ -152,7 +152,7 @@ invisible to the viewer until it is added there as well.
 | `format_version`, `editor_version`, `build_version` | map format and authoring-tool versions; `build_version` is a 4-part list when known |
 | `parse_status`, `parse_error` | `ok`, `carved` (salvaged from raw sectors), `metadata_error`, or `metadata_unavailable` (campaign packs are not parsed for metadata) |
 | `modification` | third-party script modification detected in the map, when any: tool, label, variant, activation strings and evidence |
-| `cover_status`, `cover_source`, `cover_path`, `cover_url` | thumbnail availability and origin (`preview` or minimap) |
+| `cover_status`, `cover_source`, `cover_path`, `cover_url` | thumbnail availability and origin: `preview`, `map` (minimap), or `salvage` — recovered from an unreadable archive's raw member data, correct in about 95% of cases |
 | `dataset_path`, `download_url`, `source_paths` | where the object lives here, and the original paths it was ingested from |
 
 ## Acknowledgements

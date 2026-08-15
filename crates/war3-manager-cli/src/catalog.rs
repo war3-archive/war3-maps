@@ -443,33 +443,41 @@ pub fn derive(bytes: &[u8], filename: &str, content_type: &str) -> Derived {
 /// `deploy/export_covers.py`, which owns the published WebP.
 pub fn cover_png(bytes: &[u8]) -> Option<(Vec<u8>, &'static str)> {
     catch_unwind(AssertUnwindSafe(|| {
-        let mut archive = War3MapW3x::from_buffer(bytes).ok()?;
-        for (candidates, source) in [(PREVIEW_COVERS, "preview"), (MAP_COVERS, "map")] {
-            for candidate in candidates {
-                if !archive.has(candidate) {
-                    continue;
+        if let Ok(mut archive) = War3MapW3x::from_buffer(bytes) {
+            for (candidates, source) in [(PREVIEW_COVERS, "preview"), (MAP_COVERS, "map")] {
+                for candidate in candidates {
+                    if !archive.has(candidate) {
+                        continue;
+                    }
+                    let Ok(data) = archive.read_file(candidate) else {
+                        continue;
+                    };
+                    if let Some(png) = encode_cover(&data, candidate) {
+                        return Some((png, source));
+                    }
                 }
-                let Ok(data) = archive.read_file(candidate) else {
-                    continue;
-                };
-                let Ok(image) = War3Image::from_buffer(&data, candidate) else {
-                    continue;
-                };
-                let mut png = Cursor::new(Vec::new());
-                if image
-                    .data
-                    .write_to(&mut png, ImageOutputFormat::Png)
-                    .is_err()
-                {
-                    continue;
-                }
-                return Some((png.into_inner(), source));
             }
         }
-        None
+
+        // The archive is unreadable by name, or holds no cover under one. The
+        // member data usually survives both, so fall back to the salvage walk —
+        // it cannot say *which* image it found, hence its own source tier.
+        let data = carve::carve_cover(bytes)?;
+        encode_cover(&data, "war3mapMap.blp").map(|png| (png, "salvage"))
     }))
     .ok()
     .flatten()
+}
+
+/// Decode a cover member and re-encode it as PNG.
+fn encode_cover(data: &[u8], filename: &str) -> Option<Vec<u8>> {
+    let image = War3Image::from_buffer(data, filename).ok()?;
+    let mut png = Cursor::new(Vec::new());
+    image
+        .data
+        .write_to(&mut png, ImageOutputFormat::Png)
+        .ok()
+        .map(|()| png.into_inner())
 }
 
 fn hf_resolve_url(repo: Option<&str>, dataset_path: &str) -> Option<String> {

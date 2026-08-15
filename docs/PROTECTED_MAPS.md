@@ -116,6 +116,14 @@ Encrypted members used to end the walk; recovery 3 below is what lifted the
 `w3i` count from 192 to 281 and the exact block-table reproduction from 17 maps
 to 113.
 
+Covers are salvaged by header rather than by name: a Warcraft III minimap or
+preview is a 256-pixel square JPEG `BLP1` with no alpha channel, and the earliest
+member of that shape is taken. Across 215 healthy maps whose real cover the walk
+also reaches, every one has that header; the rule picks it in 189, picks imported
+art of the same shape in 10, and declines in 16. That is good enough for maps
+that would otherwise show nothing and not good enough to pass off as a read, so
+the catalog records it as `cover_source: "salvage"`.
+
 Verified end to end on one map whose tables are noise: the walk yields 15
 members, 14 of which decompress, and their leading bytes line up one for one
 with the names recovered from the stuffed tail below — member 0 is `W3E!`,
