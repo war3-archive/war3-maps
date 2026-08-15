@@ -200,6 +200,49 @@ pub fn encrypt(data: &mut [u8], mut seed: u32) {
     }
 }
 
+/// Recover the seed a two-word run was encrypted with, from its plaintext.
+///
+/// The cipher derives word 0's mask from the seed alone:
+///
+/// ```text
+/// seed2 = 0xEEEEEEEE + CRYPT_TABLE[0x400 + (seed & 0xFF)]
+/// mask0 = seed + seed2
+/// ```
+///
+/// so one guess at plaintext word 0 pins `seed + CRYPT_TABLE[0x400 + (seed &
+/// 0xFF)]`, and each of the 256 possible low bytes yields exactly one candidate
+/// seed. That is 256 trials, not 2^32. Word 1 then separates the real seed from
+/// the handful of low bytes that survive by coincidence, which is why the caller
+/// passes the range it must land in rather than an exact value — a sector offset
+/// table's second entry is only known to lie within one sector of its first.
+///
+/// This is StormLib's `DetectFileSeed`.
+pub fn detect_seed(encrypted: [u32; 2], plain0: u32, plain1: std::ops::Range<u32>) -> Option<u32> {
+    let target = (encrypted[0] ^ plain0).wrapping_sub(0xeeeeeeee);
+
+    for i in 0..0x100 {
+        let seed = target.wrapping_sub(CRYPT_TABLE[0x400 + i]);
+        let seed2 = 0xeeeeeeeeu32.wrapping_add(CRYPT_TABLE[(0x400 + (seed & 0xff)) as usize]);
+        // The candidate is only consistent if it reproduces word 0 — deriving
+        // it from `i` assumed a low byte the subtraction may not have produced.
+        if encrypted[0] ^ seed.wrapping_add(seed2) != plain0 {
+            continue;
+        }
+
+        let next_seed = ((!seed << 0x15).wrapping_add(0x11111111)) | (seed >> 0x0b);
+        let next_seed2 = plain0
+            .wrapping_add(seed2)
+            .wrapping_add(seed2 << 5)
+            .wrapping_add(3)
+            .wrapping_add(CRYPT_TABLE[(0x400 + (next_seed & 0xff)) as usize]);
+        if plain1.contains(&(encrypted[1] ^ next_seed.wrapping_add(next_seed2))) {
+            return Some(seed);
+        }
+    }
+
+    None
+}
+
 pub fn decrypt(data: &mut [u8], mut seed: u32) {
     let mut seed2: u32 = 0xeeeeeeee;
     let mut it = 0;

@@ -55,33 +55,43 @@ fn salvage(archive_file_name: &str) {
 
     let members = archive.salvage_members();
     for (i, member) in members.iter().enumerate() {
+        // An encrypted member's key was recovered from its own sector table, so
+        // it is worth showing: it is the difference between a member the walk
+        // read and one it only stepped over.
+        let key = match member.key {
+            Some(key) => format!(" key={:#010x}", key),
+            None => String::new(),
+        };
         // Four inflated bytes name the member; inflating it whole to read them
         // would decompress every script and texture in the archive.
         match archive.peek_salvaged(member, 4) {
             // Names live only in the hash table, so the leading bytes are all a
             // caller has to identify a salvaged member by.
             Ok(magic) => println!(
-                "{:4} offset={:#x} packed={} sectors={} magic={}",
+                "{:4} offset={:#x} packed={} sectors={}{} magic={}",
                 i,
                 member.offset,
                 member.packed_size,
                 member.sector_count(),
+                key,
                 magic
                     .iter()
                     .map(|b| format!("{:02x}", b))
                     .collect::<String>()
             ),
             Err(e) => println!(
-                "{:4} offset={:#x} packed={} sectors={} error={}",
+                "{:4} offset={:#x} packed={} sectors={}{} error={}",
                 i,
                 member.offset,
                 member.packed_size,
                 member.sector_count(),
+                key,
                 e
             ),
         }
     }
-    println!("{} member(s)", members.len());
+    let encrypted = members.iter().filter(|m| m.key.is_some()).count();
+    println!("{} member(s), {} encrypted", members.len(), encrypted);
 }
 
 fn main() {

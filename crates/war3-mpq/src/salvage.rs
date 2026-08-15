@@ -17,12 +17,19 @@
 //! one-way hashes — so callers identify members by content. Measured against 200
 //! healthy maps the walk reproduces the real block table exactly (same offsets,
 //! same packed sizes, same order) in 99 cases and as a correct prefix in most of
-//! the rest; it stops early on zero-length, single-unit or encrypted members,
-//! whose sector table it cannot read. Treat the result as salvage, not as an
-//! authoritative directory.
+//! the rest; it stops early on zero-length or single-unit members, whose sector
+//! table it cannot read. Treat the result as salvage, not as an authoritative
+//! directory.
+//!
+//! An *encrypted* member does not stop it. Its sector offset table is encrypted
+//! along with the rest, and the key is derived from a basename the walk does not
+//! have — but the table is known plaintext: entry 0 is the table's own byte
+//! length. Guessing that one word recovers the key outright, so the walk reads
+//! encrypted members and, more importantly, gets past them to the ones behind.
 
 use crate::archive::Archive;
 use crate::compression::decompress;
+use crate::crypt::{decrypt, detect_seed};
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{prelude::*, Error, ErrorKind, SeekFrom};
 
@@ -50,6 +57,10 @@ pub struct SalvagedMember {
     pub packed_size: u32,
     /// The member's sector offsets, relative to `offset`.
     pub sector_offsets: Vec<u32>,
+    /// The member's file key, when it is encrypted — recovered from the sector
+    /// offset table rather than from a name, so it already accounts for
+    /// `FILE_FIX_KEY`. Sector `i` is decrypted with `key + i`.
+    pub key: Option<u32>,
 }
 
 impl SalvagedMember {
@@ -123,6 +134,9 @@ impl Archive {
             self.offset + u64::from(member.offset) + u64::from(from),
         ))?;
         self.file.read_exact(&mut raw)?;
+        if let Some(key) = member.key {
+            decrypt(&mut raw, key);
+        }
 
         // A sector as long as the archive's sector size is stored verbatim.
         if len == self.sector_size as usize {
@@ -169,7 +183,7 @@ impl Archive {
         let mut raw: Vec<u8> = Vec::new();
         let mut scratch: Vec<u8> = vec![0; sector_size];
 
-        for pair in member.sector_offsets.windows(2).take(sectors) {
+        for (i, pair) in member.sector_offsets.windows(2).take(sectors).enumerate() {
             let (from, to) = (pair[0], pair[1]);
             // The walk already checked that offsets rise and stay within the
             // declared sector size, so this cannot underflow or over-allocate.
@@ -183,6 +197,10 @@ impl Archive {
                 self.offset + u64::from(member.offset) + u64::from(from),
             ))?;
             self.file.read_exact(&mut raw)?;
+            // Each sector carries its own key, counting from the member's.
+            if let Some(key) = member.key {
+                decrypt(&mut raw, key.wrapping_add(i as u32));
+            }
 
             if len == sector_size {
                 out.extend_from_slice(&raw);
@@ -210,16 +228,19 @@ impl Archive {
     /// Parse a member's sector offset table at `pos`, or `None` if what is there
     /// cannot be one.
     fn member_at(&self, buf: &[u8], pos: u64, end: u64) -> Option<SalvagedMember> {
+        self.plain_member_at(buf, pos, end)
+            .or_else(|| self.encrypted_member_at(buf, pos, end))
+    }
+
+    /// Read a sector offset table that is stored in the clear.
+    fn plain_member_at(&self, buf: &[u8], pos: u64, end: u64) -> Option<SalvagedMember> {
         let start = self.offset.checked_add(pos)?;
         if start.checked_add(8)? > end {
             return None;
         }
 
         let first = LittleEndian::read_u32(&buf[start as usize..]);
-        if first < 8 || first % 4 != 0 || first > MAX_SECTOR_TABLE {
-            return None;
-        }
-        let count = first / 4; // sectors + 1
+        let count = table_entries(first)?;
         if start + u64::from(first) > end {
             return None;
         }
@@ -230,8 +251,83 @@ impl Archive {
             offsets.push(LittleEndian::read_u32(&buf[at..]));
         }
 
-        // A sector table rises monotonically and no sector expands beyond the
-        // archive's sector size; noise satisfies neither.
+        self.member_from(pos, offsets, None, start, end)
+    }
+
+    /// Recover an encrypted member's sector offset table by guessing its first
+    /// entry.
+    ///
+    /// A table's first entry is its own byte length, `4 * (sectors + 1)`, so the
+    /// plaintext of word 0 is known up to the sector count — a few thousand
+    /// candidates, each costing the 256 trials of [`detect_seed`]. Word 1 is the
+    /// end of sector 0, which lies within one sector size of word 0; that range
+    /// is what rejects the coincidences.
+    ///
+    /// Only the first entry is guessed. Once a seed explains words 0 and 1 the
+    /// whole table decrypts, and the usual monotonicity check decides whether it
+    /// was the right one.
+    fn encrypted_member_at(&self, buf: &[u8], pos: u64, end: u64) -> Option<SalvagedMember> {
+        let start = self.offset.checked_add(pos)?;
+        if start.checked_add(8)? > end {
+            return None;
+        }
+
+        let encrypted = [
+            LittleEndian::read_u32(&buf[start as usize..]),
+            LittleEndian::read_u32(&buf[start as usize + 4..]),
+        ];
+
+        for first in (8..=MAX_SECTOR_TABLE).step_by(4) {
+            if start + u64::from(first) > end {
+                break;
+            }
+            // Sector 0 ends somewhere in `(first, first + sector_size]`: it
+            // cannot be empty, and no sector inflates past the sector size.
+            let Some(seed) = detect_seed(
+                encrypted,
+                first,
+                first + 1..first.saturating_add(self.sector_size).saturating_add(1),
+            ) else {
+                continue;
+            };
+
+            let count = table_entries(first)?;
+            let bytes = (count * 4) as usize;
+            let at = start as usize;
+            let mut table = buf[at..at + bytes].to_vec();
+            decrypt(&mut table, seed);
+
+            let offsets: Vec<u32> = table.chunks_exact(4).map(LittleEndian::read_u32).collect();
+            // The table is keyed one below the member, which is the convention
+            // `read_salvaged_prefix` counts sectors from.
+            if let Some(member) =
+                self.member_from(pos, offsets, Some(seed.wrapping_add(1)), start, end)
+            {
+                return Some(member);
+            }
+        }
+
+        None
+    }
+
+    /// Validate a sector offset table and turn it into a member.
+    ///
+    /// A real table rises monotonically, expands no sector beyond the archive's
+    /// sector size, and ends at a packed size that stays inside the data region.
+    /// Noise satisfies none of the three, which is what keeps both the walk and
+    /// the key search from accepting garbage.
+    fn member_from(
+        &self,
+        pos: u64,
+        offsets: Vec<u32>,
+        key: Option<u32>,
+        start: u64,
+        end: u64,
+    ) -> Option<SalvagedMember> {
+        if offsets.first() != Some(&(offsets.len() as u32 * 4)) {
+            return None;
+        }
+
         for pair in offsets.windows(2) {
             if pair[1] < pair[0] || pair[1] - pair[0] > self.sector_size {
                 return None;
@@ -247,8 +343,15 @@ impl Archive {
             offset: pos as u32,
             packed_size,
             sector_offsets: offsets,
+            key,
         })
     }
+}
+
+/// Entry count of a sector offset table whose first entry is `first`, or `None`
+/// when that value cannot be a table length at all.
+fn table_entries(first: u32) -> Option<u32> {
+    (first >= 8 && first.is_multiple_of(4) && first <= MAX_SECTOR_TABLE).then_some(first / 4)
 }
 
 #[cfg(test)]
@@ -260,7 +363,12 @@ mod tests {
 
     /// Build a one-member archive: 32-byte header, one zlib member, then tables.
     fn archive_with_member(payload: &[u8], wreck_tables: bool) -> Vec<u8> {
-        let sector_size: usize = 4096;
+        archive_with_members(&[(payload, None)], wreck_tables)
+    }
+
+    /// Lay out one member: its sector offset table followed by its zlib sectors,
+    /// encrypted with `key` when the member is meant to be an encrypted one.
+    fn member_bytes(payload: &[u8], key: Option<u32>, sector_size: usize) -> Vec<u8> {
         let sectors: Vec<&[u8]> = payload.chunks(sector_size).collect();
 
         let mut bodies: Vec<Vec<u8>> = Vec::new();
@@ -273,19 +381,44 @@ mod tests {
         }
 
         let table_len = (sectors.len() + 1) * 4;
-        let mut member: Vec<u8> = Vec::new();
+        let mut table: Vec<u8> = Vec::new();
         let mut at = table_len as u32;
-        member.extend_from_slice(&at.to_le_bytes());
+        table.extend_from_slice(&at.to_le_bytes());
         for body in &bodies {
             at += body.len() as u32;
-            member.extend_from_slice(&at.to_le_bytes());
+            table.extend_from_slice(&at.to_le_bytes());
         }
+
+        // Storm keys the sector table one below the file and each sector by its
+        // index, which is what the walk has to reproduce without a name.
+        if let Some(key) = key {
+            encrypt(&mut table, key.wrapping_sub(1));
+            for (i, body) in bodies.iter_mut().enumerate() {
+                encrypt(body, key.wrapping_add(i as u32));
+            }
+        }
+
+        let mut member = table;
         for body in &bodies {
             member.extend_from_slice(body);
         }
-        let packed = member.len() as u32;
+        member
+    }
 
-        let hash_pos = 0x20 + packed;
+    /// Build an archive holding `members` back to back, with a hash and block
+    /// entry describing the first one.
+    fn archive_with_members(members: &[(&[u8], Option<u32>)], wreck_tables: bool) -> Vec<u8> {
+        let sector_size: usize = 4096;
+        let payload = members[0].0;
+
+        let mut member: Vec<u8> = Vec::new();
+        for (bytes, key) in members {
+            member.extend_from_slice(&member_bytes(bytes, *key, sector_size));
+        }
+        let packed = member_bytes(payload, members[0].1, sector_size).len() as u32;
+
+        // The data region runs to the tables, so they sit behind every member.
+        let hash_pos = 0x20 + member.len() as u32;
         let block_pos = hash_pos + 16;
 
         let mut hash_raw = vec![0u8; 16];
@@ -382,12 +515,65 @@ mod tests {
     #[test]
     fn a_walk_that_cannot_start_yields_nothing() {
         let mut archive = archive_with_member(b"payload", true);
-        // Encrypted members keep their sector table encrypted, which is what the
-        // walk trips over on 76 maps in the corpus.
+        // Noise where the first member's sector table should be. Unlike an
+        // encrypted table this is not the ciphertext of anything, so the key
+        // search has nothing to find either.
         for byte in archive[0x20..0x28].iter_mut() {
             *byte = 0xAB;
         }
         let archive = Archive::load(archive).unwrap();
         assert!(archive.salvage_members().is_empty());
+    }
+
+    /// An encrypted member is keyed on a basename the walk does not have, but
+    /// its sector table is known plaintext, so the key comes out of the data.
+    #[test]
+    fn reads_an_encrypted_member_without_its_name() {
+        let payload: Vec<u8> = (0..9_000u32).map(|i| (i % 241) as u8).collect();
+        let key = hash_string("war3map.w3i", 0x300);
+        let mut archive =
+            Archive::load(archive_with_members(&[(&payload, Some(key))], true)).unwrap();
+
+        let members = archive.salvage_members();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].key, Some(key));
+        assert_eq!(members[0].sector_count(), 3);
+        assert_eq!(archive.read_salvaged(&members[0]).unwrap(), payload);
+    }
+
+    /// The point of recovering the key is not the encrypted member itself but
+    /// the ones behind it: an unreadable sector table used to end the walk.
+    #[test]
+    fn an_encrypted_member_does_not_end_the_walk() {
+        let first: Vec<u8> = (0..3_000u32).map(|i| (i % 251) as u8).collect();
+        let second: Vec<u8> = (0..2_000u32).map(|i| (i % 199) as u8).collect();
+        let mut archive = Archive::load(archive_with_members(
+            &[(&first, Some(0xDEAD_BEEF)), (&second, None)],
+            true,
+        ))
+        .unwrap();
+
+        let members = archive.salvage_members();
+        assert_eq!(members.len(), 2);
+        assert_eq!(members[0].key, Some(0xDEAD_BEEF));
+        assert_eq!(members[1].key, None);
+        assert_eq!(archive.read_salvaged(&members[0]).unwrap(), first);
+        assert_eq!(archive.read_salvaged(&members[1]).unwrap(), second);
+    }
+
+    /// `FILE_FIX_KEY` mixes the member's offset and size into the key. Detection
+    /// reads the effective key off the data, so the variant needs no handling.
+    #[test]
+    fn recovers_a_fix_key_member() {
+        let payload: Vec<u8> = (0..1_500u32).map(|i| (i % 173) as u8).collect();
+        let base = hash_string("war3map.j", 0x300);
+        let key = (base.wrapping_add(0x20)) ^ (payload.len() as u32);
+        let mut archive =
+            Archive::load(archive_with_members(&[(&payload, Some(key))], true)).unwrap();
+
+        let members = archive.salvage_members();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].key, Some(key));
+        assert_eq!(archive.read_salvaged(&members[0]).unwrap(), payload);
     }
 }

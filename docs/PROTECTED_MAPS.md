@@ -5,6 +5,13 @@ reader can open. Everything here was measured on the 10,365-map corpus; the
 counts refer to the 301 archives that `war3parser` could not read by name
 (223 recovered by sector carving, 78 outright failures) as of 2026-08-14.
 
+That the 301 are a hard floor and not a gap in this reader was checked against
+the other implementations: StormLib reads 2 of them and `mdx-m3-viewer` 5, with
+all four MPQ libraries measured — StormLib, `mdx-m3-viewer`, `mpq-rs`, `wow-mpq`
+— together reaching 7. Over the whole corpus StormLib and this reader agree
+exactly (9,775 of 10,076 maps each, differing on 2 in either direction), so the
+recoveries below are the only route left.
+
 ## The classic protection folklore, checked
 
 Chinese map-protection writeups from the mid-2000s circulate a recipe built on
@@ -92,18 +99,22 @@ u32s whose first value is `4*(n+1)` and whose last value is the packed size.
 That is enough to chain from one member to the next, from `0x20` to the start of
 the hash table, without consulting either table.
 
-Validated against 200 healthy maps, the walk reproduces the real block table
-exactly — same offsets, same packed sizes, same order — in 99 cases and as a
-correct prefix in most of the rest. It breaks on zero-length members, on
-single-unit or encrypted members, and on the occasional archive whose block
-order is not its data order, so it is a salvage tool and not a substitute for a
-table.
+Validated against 300 healthy maps, the walk reproduces the real block table
+exactly — same offsets, same packed sizes, same order — in 113 cases and as a
+correct prefix in most of the rest, 60,999 block entries in all. It breaks on
+zero-length members, on single-unit members, and on the occasional archive whose
+block order is not its data order, so it is a salvage tool and not a substitute
+for a table.
 
-On the 301 hard maps the walk finds a `war3map.w3i` in 192, a `war3mapMap.blp` in
-172, and a `war3map.wts` in 113 — the covers and string tables in particular are
+On the 301 hard maps the walk finds a `war3map.w3i` in 281, a `war3mapMap.blp` in
+266, and a `war3map.wts` in 190 — the covers and string tables in particular are
 new, since carving only ever looked for `w3i` and `wts`. This is implemented as
 [`Archive::salvage_members`](../src/salvage.rs), and `war3-mpq -s FILE` prints
 what it finds.
+
+Encrypted members used to end the walk; recovery 3 below is what lifted the
+`w3i` count from 192 to 281 and the exact block-table reproduction from 17 maps
+to 113.
 
 Verified end to end on one map whose tables are noise: the walk yields 15
 members, 14 of which decompress, and their leading bytes line up one for one
@@ -145,19 +156,32 @@ all mutually consistent with an intact archive, so this is damage inflicted afte
 the fact, not a protection scheme. Storm cannot read it either. Not implemented;
 the walk recovers the same members without needing the names.
 
-### Recovery 3: encrypted first member (not implemented)
+### Recovery 3: encrypted members
 
-The walk cannot start on 76 of the 301, and on most of those the first dword of
-the data region is a value that repeats across unrelated maps — the sector offset
-table of an encrypted member, encrypted with the same protector-chosen name in
-each. `FILE_ENCRYPTED` members are keyed on the *basename*, which we do not have.
+The walk used to stop dead at any `FILE_ENCRYPTED` member, and on 76 of the 301
+that member was the first one, so the walk could not start at all. On most of
+those the first dword of the data region is a value that repeats across unrelated
+maps — the sector offset table of a member encrypted with the same
+protector-chosen name in each. Encrypted members are keyed on the *basename*,
+which we do not have.
 
-The same known-plaintext attack applies: a sector table's first entry is
-`4*(n+1)`, so iterating plausible sector counts gives a small candidate set of
-keys, each verifiable by checking that the decrypted offsets are monotonic and
-that the sectors inflate. StormLib does this in `DetectFileKeyByContent`. Worth
-adding — it is the difference between 192 and something closer to 260 readable
-`w3i`s.
+The table is known plaintext, though. Its first entry is its own byte length,
+`4*(n+1)`, and the cipher derives word 0's mask from the seed alone, so guessing
+that one word costs 256 trials rather than 2^32 — the same argument that recovers
+a table key above. Iterating plausible sector counts gives a few thousand
+candidate plaintexts; word 1 must land within one sector of word 0, and the full
+table must then decrypt to monotonic offsets ending at a packed size that stays
+inside the data region. That is StormLib's `DetectFileSeed`, and it is now
+[`crypt::detect_seed`](../src/crypt.rs), driven by `Archive::encrypted_member_at`.
+
+Detection reads the *effective* key straight off the data, so `FILE_FIX_KEY` —
+which mixes the member's offset and unpacked size into the key — needs no
+separate handling.
+
+Measured on all 300 healthy maps in the validation sample, this flags 8,623
+encrypted blocks and gets every one right, with no plain member wrongly treated
+as encrypted; 65 walks that could not start now do, and none that used to start
+stopped.
 
 ## Where the remaining failures sit
 
@@ -165,10 +189,12 @@ Partitioning all 301 by what the walk achieves:
 
 | Group | Count | State |
 |---|---|---|
-| Walk reaches a `war3map.w3i` | 192 | recoverable now |
-| Walk runs but finds no `w3i` | 32 | member chain breaks part-way |
-| Walk cannot start — first member encrypted | 76 | needs key detection (recovery 3) |
-| No usable header at all | 1 | nothing to anchor on |
+| Walk reaches a `war3map.w3i` | 281 | recoverable now |
+| Walk runs but finds no `w3i` | 14 | member chain breaks part-way |
+| No usable header at all | 6 | nothing to anchor on |
+
+Behind `war3parser`'s `carve_deep`, which falls back to the sector scan when the
+walk finds nothing, 293 of the 301 yield a `w3i`.
 
 Two cross-cutting notes:
 
