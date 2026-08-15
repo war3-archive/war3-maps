@@ -37,6 +37,10 @@ EXPECTED_COLLECTIONS = {
 }
 
 USER_AGENT = "war3parser-verify/1"
+# `salvage` is emitted when a damaged archive has no readable member table but
+# still contains a cover-shaped BLP.  It is intentionally distinguishable from
+# named preview/minimap extraction, not an invalid value.
+COVER_SOURCES = {"preview", "map", "salvage"}
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -86,7 +90,7 @@ class LocalAudit:
             cover_path = item.get("cover_path")
             if cover_path:
                 self.covers += 1
-                if item.get("cover_source") not in ("preview", "map"):
+                if item.get("cover_source") not in COVER_SOURCES:
                     self.bad_cover_source += 1
                 if not (root / cover_path).is_file():
                     self.missing_covers.append(cover_path)
