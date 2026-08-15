@@ -109,12 +109,39 @@ just deploy --help
 | `apply-rescan` | 回填完整重扫结果 |
 | `apply-mods` | 回填第三方脚本修改检测结果 |
 | `apply-versions` | 回填 w3i 版本字段 |
+| `classify-tags` | 使用本地 OpenAI 兼容小模型生成可审核、可续跑的玩法/系列/题材标签候选 |
 | `export-covers` | 导出 WebP 封面并写入 `cover_path`、`cover_url` |
 | `upload` | 校验并上传内容寻址数据集 |
 | `verify` | 发布后检查栏目、失败记录、封面与下载链接 |
 
 长流程的进度打在 stderr（终端里就地刷新，重定向到文件时每步一行），JSON 报告打在
 stdout，因此 `... | jq` 只会读到报告。
+
+### AI 标签候选
+
+`classify-tags` 不会覆盖历史 `collection` 或 `category`。它会去掉标题和简介中的
+Warcraft III 颜色/换行控制码，向本机的 OpenAI 兼容模型请求固定词表中的多标签，并在
+每批完成后写入 `catalog/tag-candidates.jsonl`；重跑会跳过已有 SHA-256，可安全续跑。
+
+Apple Silicon 上可用 MLX 启动默认的小模型：
+
+```bash
+uv tool install mlx-lm
+mlx_lm.server --model mlx-community/Qwen3-4B-Instruct-2507-4bit --port 8080
+
+uv run --project deploy war3-deploy classify-tags /path/to/war3-maps-dataset
+```
+
+完成后先抽样审阅候选，再明确写入目录：
+
+```bash
+uv run --project deploy war3-deploy classify-tags /path/to/war3-maps-dataset --apply
+```
+
+`--apply` 要求候选数与目录地图数完全相同，并新增 `tags`、`tag_confidence`、
+`tag_evidence`、`tag_schema_version`。上传带这些字段的目录前，必须把更新后的
+`deploy/hf/DATASET_README.template.md` 复制为数据集根目录的 `README.md`，否则 Hub
+viewer 会忽略新字段。
 
 地图修改检测的字段和规则见 [MOD_DETECTION.md](MOD_DETECTION.md)。
 

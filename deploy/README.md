@@ -14,6 +14,7 @@ uv run --project deploy war3-deploy --help
 | `apply-rescan` | 回填 `war3-manager rescan` 结果 |
 | `apply-mods` | 回填 `war3-manager scan-mods` 结果 |
 | `apply-versions` | 回填 `war3-manager scan-versions` 的 w3i 版本字段 |
+| `classify-tags` | 通过本地小模型生成可续跑的玩法、系列和题材标签候选 |
 | `export-covers` | 导出 WebP 封面并写入 `cover_path`、`cover_url` |
 | `upload` | 校验并上传到 Hugging Face |
 | `verify` | 发布后检查栏目、失败记录、封面与下载链接 |

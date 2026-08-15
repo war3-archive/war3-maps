@@ -38,6 +38,14 @@ dataset_info:
       dtype: string
     - name: collections
       sequence: string
+    - name: tags
+      sequence: string
+    - name: tag_confidence
+      dtype: string
+    - name: tag_evidence
+      sequence: string
+    - name: tag_schema_version
+      dtype: int64
     - name: filename
       dtype: string
     - name: extension
@@ -147,7 +155,8 @@ invisible to the viewer until it is added there as well.
 | Field | Meaning |
 |-------|---------|
 | `sha256`, `size`, `filename`, `extension`, `format`, `content_type` | object identity; `content_type` is `map` or `campaign` |
-| `name`, `author`, `description`, `category`, `collection`, `collections` | presentation metadata; `name_source` records where the title came from (`w3i`, filename, …) |
+| `name`, `author`, `description`, `category`, `collection`, `collections` | presentation metadata; `name_source` records where the title came from (`w3i`, filename, …). `collection` is historical source provenance, not a gameplay classification. |
+| `tags`, `tag_confidence`, `tag_evidence`, `tag_schema_version` | controlled gameplay, franchise, and theme tags; model confidence and short auditable evidence. Tags are generated from Warcraft-colour-code-stripped titles and descriptions, while legacy collections are only weak hints. |
 | `recommended_players`, `max_players`, `player_count`, `playable_width`, `playable_height`, `tileset` | gameplay metadata parsed from `war3map.w3i` |
 | `format_version`, `editor_version`, `build_version` | map format and authoring-tool versions; `build_version` is a 4-part list when known |
 | `parse_status`, `parse_error` | `ok`, `carved` (salvaged from raw sectors), `metadata_error`, or `metadata_unavailable` (campaign packs are not parsed for metadata) |
