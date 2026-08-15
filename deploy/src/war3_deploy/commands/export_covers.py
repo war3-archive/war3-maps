@@ -87,6 +87,13 @@ def export_one(item: dict, options: Options) -> tuple[dict, str]:
             try:
                 raw = base64.b64decode(str(item["cover_data"]), validate=True)
             except (binascii.Error, ValueError):
+                # The Dataset Card intentionally does not expose the bulky
+                # inline source field. Invalid data cannot become a WebP, but
+                # it must still be removed so every JSONL row conforms to the
+                # pinned viewer schema.
+                item.pop("cover_data", None)
+                item.pop("cover_path", None)
+                item.pop("cover_url", None)
                 return item, "bad-data"
             with Image.open(io.BytesIO(raw)) as image:
                 encode(image, webp, options.quality, options.max_edge)

@@ -125,7 +125,15 @@ def run(args: argparse.Namespace) -> None:
         # local, and .DS_Store has no business in a public dataset. The patterns
         # are matched with fnmatch against the repo-relative path, so `**/` only
         # matches nested files — the dataset root needs its own bare pattern.
-        ignore_patterns=["covers/**/*.png", ".DS_Store", "**/.DS_Store"],
+        ignore_patterns=[
+            "covers/**/*.png",
+            ".DS_Store",
+            "**/.DS_Store",
+            ".claude",
+            ".claude/**",
+            "**/.claude",
+            "**/.claude/**",
+        ],
         commit_message="Upload cleaned Warcraft III map archive",
     )
     elapsed = time.monotonic() - started
