@@ -27,7 +27,6 @@ REFRESH_FIELDS = (
     "recommended_players",
     "max_players",
     "player_count",
-    "category",
     "filename",
     "extension",
     "format",
